@@ -1017,7 +1017,7 @@ def show_status():
         print(f"服务状态: {Colors.RED}已停止{Colors.END}")
     
     # 当前节点
-    print(f"当前节点: {get_current_node_info()}")
+    print(f"当前节点: {Colors.BOLD}{Colors.CYAN}{get_current_node_info()}{Colors.END}")
     
     # IP信息
     if status == "active":
@@ -1116,10 +1116,10 @@ def show_proxy_status():
     node_name, server_port, protocol = get_current_node_detail()
     
     if node_name:
-        print(f"{Colors.BLUE}▸ 当前节点: {Colors.YELLOW}{node_name}{Colors.END}")
+        print(f"{Colors.BLUE}▸ 当前节点: {Colors.BOLD}{Colors.CYAN}🔸 {node_name} 🔸{Colors.END}")
         print(f"{Colors.BLUE}▸ 服务器: {Colors.END}{server_port} {Colors.PURPLE}[{protocol}]{Colors.END}")
     elif server_port:
-        print(f"{Colors.BLUE}▸ 当前节点: {Colors.YELLOW}未知节点{Colors.END}")
+        print(f"{Colors.BLUE}▸ 当前节点: {Colors.BOLD}{Colors.RED}未知节点{Colors.END}")
         print(f"{Colors.BLUE}▸ 服务器: {Colors.END}{server_port} {Colors.PURPLE}[{protocol}]{Colors.END}")
     else:
         print(f"{Colors.RED}▸ 节点状态: 未配置{Colors.END}")
@@ -1195,7 +1195,7 @@ def show_main_menu():
     """显示主菜单"""
     print(f"\n{Colors.BOLD}V2Ray 综合管理工具 v2.1{Colors.END}")
     print("="*60)
-    print(f"当前节点: {Colors.GREEN}{get_current_node_info()}{Colors.END}")
+    print(f"当前节点: {Colors.BOLD}{Colors.CYAN}{get_current_node_info()}{Colors.END}")
     print("="*60)
     print("1. 快速开始（推荐新用户）")
     print("2. 节点管理")
