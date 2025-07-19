@@ -54,37 +54,37 @@ class Colors:
 
 # 内置节点（来自v2ray_node_switcher.py）
 BUILTIN_NODES = [
-    # 香港节点
-    {"name": "VIP-v2ray-Hong Kong 01", "server": "andromedae.weltknoten.xyz", "port": 30001, "region": "香港", "tls": "tls"},
-    {"name": "VIP-v2ray-Hong Kong 02", "server": "monocerotis.weltknoten.xyz", "port": 30002, "region": "香港", "tls": "tls"},
-    {"name": "VIP-v2ray-Hong Kong 03", "server": "orionis.weltknoten.xyz", "port": 30003, "region": "香港", "tls": "tls"},
-    {"name": "VIP-v2ray-Hong Kong 04", "server": "phoenicis.weltknoten.xyz", "port": 30004, "region": "香港", "tls": "tls"},
-    {"name": "VIP-v2ray-Hong Kong 05", "server": "scorpii.weltknoten.xyz", "port": 30020, "region": "香港", "tls": "tls"},
-    {"name": "VIP-v2ray-Hong Kong 06", "server": "andromedae.weltknoten.xyz", "port": 30021, "region": "香港", "tls": "tls"},
-    {"name": "VIP-v2ray-Hong Kong 07", "server": "monocerotis.weltknoten.xyz", "port": 30022, "region": "香港", "tls": "tls"},
-    {"name": "VIP-v2ray-Hong Kong 08", "server": "orionis.weltknoten.xyz", "port": 30023, "region": "香港", "tls": "tls"},
-    # 日本节点
-    {"name": "VIP-v2ray-Japan 01", "server": "phoenicis.weltknoten.xyz", "port": 30005, "region": "日本", "tls": "tls"},
-    {"name": "VIP-v2ray-Japan 02", "server": "scorpii.weltknoten.xyz", "port": 30006, "region": "日本", "tls": "tls"},
-    # 韩国节点
-    {"name": "VIP-v2ray-Korea", "server": "andromedae.weltknoten.xyz", "port": 30024, "region": "韩国", "tls": "tls"},
-    # 新加坡节点
-    {"name": "VIP-v2ray-Singapore 01", "server": "andromedae.weltknoten.xyz", "port": 30007, "region": "新加坡", "tls": "tls"},
-    {"name": "VIP-v2ray-Singapore 02", "server": "monocerotis.weltknoten.xyz", "port": 30008, "region": "新加坡", "tls": "tls"},
-    # 台湾节点
-    {"name": "VIP-v2ray-Taiwan 01", "server": "orionis.weltknoten.xyz", "port": 30009, "region": "台湾", "tls": "tls"},
-    {"name": "VIP-v2ray-Taiwan 02", "server": "orionis.weltknoten.xyz", "port": 30010, "region": "台湾", "tls": "tls"},
-    # 美国节点
-    {"name": "VIP-v2ray-United States 01", "server": "phoenicis.weltknoten.xyz", "port": 30011, "region": "美国", "tls": "tls"},
-    {"name": "VIP-v2ray-United States 02", "server": "scorpii.weltknoten.xyz", "port": 30012, "region": "美国", "tls": "tls"},
-    {"name": "VIP-v2ray-United States 03", "server": "andromedae.weltknoten.xyz", "port": 30013, "region": "美国", "tls": "tls"},
-    {"name": "VIP-v2ray-United States 04", "server": "monocerotis.weltknoten.xyz", "port": 30014, "region": "美国", "tls": "tls"},
-    # 其他地区
-    {"name": "VIP-v2ray-Z-Canada", "server": "orionis.weltknoten.xyz", "port": 30018, "region": "加拿大", "tls": "tls"},
-    {"name": "VIP-v2ray-Z-England", "server": "phoenicis.weltknoten.xyz", "port": 30015, "region": "英国", "tls": "tls"},
-    {"name": "VIP-v2ray-Z-Germany", "server": "scorpii.weltknoten.xyz", "port": 30017, "region": "德国", "tls": "tls"},
-    {"name": "VIP-v2ray-Z-India", "server": "andromedae.weltknoten.xyz", "port": 30016, "region": "印度", "tls": "tls"},
-    {"name": "VIP-v2ray-Z-Russia", "server": "andromedae.weltknoten.xyz", "port": 30019, "region": "俄罗斯", "tls": "tls"},
+    # Hong Kong nodes
+    {"name": "VIP-v2ray-Hong Kong 01", "server": "andromedae.weltknoten.xyz", "port": 30001, "region": "Hong Kong", "tls": "tls"},
+    {"name": "VIP-v2ray-Hong Kong 02", "server": "monocerotis.weltknoten.xyz", "port": 30002, "region": "Hong Kong", "tls": "tls"},
+    {"name": "VIP-v2ray-Hong Kong 03", "server": "orionis.weltknoten.xyz", "port": 30003, "region": "Hong Kong", "tls": "tls"},
+    {"name": "VIP-v2ray-Hong Kong 04", "server": "phoenicis.weltknoten.xyz", "port": 30004, "region": "Hong Kong", "tls": "tls"},
+    {"name": "VIP-v2ray-Hong Kong 05", "server": "scorpii.weltknoten.xyz", "port": 30020, "region": "Hong Kong", "tls": "tls"},
+    {"name": "VIP-v2ray-Hong Kong 06", "server": "andromedae.weltknoten.xyz", "port": 30021, "region": "Hong Kong", "tls": "tls"},
+    {"name": "VIP-v2ray-Hong Kong 07", "server": "monocerotis.weltknoten.xyz", "port": 30022, "region": "Hong Kong", "tls": "tls"},
+    {"name": "VIP-v2ray-Hong Kong 08", "server": "orionis.weltknoten.xyz", "port": 30023, "region": "Hong Kong", "tls": "tls"},
+    # Japan nodes
+    {"name": "VIP-v2ray-Japan 01", "server": "phoenicis.weltknoten.xyz", "port": 30005, "region": "Japan", "tls": "tls"},
+    {"name": "VIP-v2ray-Japan 02", "server": "scorpii.weltknoten.xyz", "port": 30006, "region": "Japan", "tls": "tls"},
+    # Korea nodes
+    {"name": "VIP-v2ray-Korea", "server": "andromedae.weltknoten.xyz", "port": 30024, "region": "Korea", "tls": "tls"},
+    # Singapore nodes
+    {"name": "VIP-v2ray-Singapore 01", "server": "andromedae.weltknoten.xyz", "port": 30007, "region": "Singapore", "tls": "tls"},
+    {"name": "VIP-v2ray-Singapore 02", "server": "monocerotis.weltknoten.xyz", "port": 30008, "region": "Singapore", "tls": "tls"},
+    # Taiwan nodes
+    {"name": "VIP-v2ray-Taiwan 01", "server": "orionis.weltknoten.xyz", "port": 30009, "region": "Taiwan", "tls": "tls"},
+    {"name": "VIP-v2ray-Taiwan 02", "server": "orionis.weltknoten.xyz", "port": 30010, "region": "Taiwan", "tls": "tls"},
+    # USA nodes
+    {"name": "VIP-v2ray-United States 01", "server": "phoenicis.weltknoten.xyz", "port": 30011, "region": "USA", "tls": "tls"},
+    {"name": "VIP-v2ray-United States 02", "server": "scorpii.weltknoten.xyz", "port": 30012, "region": "USA", "tls": "tls"},
+    {"name": "VIP-v2ray-United States 03", "server": "andromedae.weltknoten.xyz", "port": 30013, "region": "USA", "tls": "tls"},
+    {"name": "VIP-v2ray-United States 04", "server": "monocerotis.weltknoten.xyz", "port": 30014, "region": "USA", "tls": "tls"},
+    # Other regions
+    {"name": "VIP-v2ray-Z-Canada", "server": "orionis.weltknoten.xyz", "port": 30018, "region": "Canada", "tls": "tls"},
+    {"name": "VIP-v2ray-Z-England", "server": "phoenicis.weltknoten.xyz", "port": 30015, "region": "UK", "tls": "tls"},
+    {"name": "VIP-v2ray-Z-Germany", "server": "scorpii.weltknoten.xyz", "port": 30017, "region": "Germany", "tls": "tls"},
+    {"name": "VIP-v2ray-Z-India", "server": "andromedae.weltknoten.xyz", "port": 30016, "region": "India", "tls": "tls"},
+    {"name": "VIP-v2ray-Z-Russia", "server": "andromedae.weltknoten.xyz", "port": 30019, "region": "Russia", "tls": "tls"},
 ]
 
 # 默认UUID（来自v2ray_node_switcher.py）
@@ -266,24 +266,24 @@ def infer_region(name):
     name_lower = name.lower()
     
     region_keywords = {
-        "香港": ["hk", "hong kong", "香港", "hongkong"],
-        "日本": ["jp", "japan", "日本", "tokyo"],
-        "新加坡": ["sg", "singapore", "新加坡"],
-        "美国": ["us", "america", "美国", "usa"],
-        "韩国": ["kr", "korea", "韩国", "seoul"],
-        "台湾": ["tw", "taiwan", "台湾"],
-        "加拿大": ["ca", "canada", "加拿大"],
-        "英国": ["uk", "britain", "英国", "london"],
-        "德国": ["de", "germany", "德国", "frankfurt"],
-        "印度": ["in", "india", "印度", "mumbai"],
-        "俄罗斯": ["ru", "russia", "俄罗斯", "moscow"]
+        "Hong Kong": ["hk", "hong kong", "香港", "hongkong"],
+        "Japan": ["jp", "japan", "日本", "tokyo"],
+        "Singapore": ["sg", "singapore", "新加坡"],
+        "USA": ["us", "america", "美国", "usa"],
+        "Korea": ["kr", "korea", "韩国", "seoul"],
+        "Taiwan": ["tw", "taiwan", "台湾"],
+        "Canada": ["ca", "canada", "加拿大"],
+        "UK": ["uk", "britain", "英国", "london"],
+        "Germany": ["de", "germany", "德国", "frankfurt"],
+        "India": ["in", "india", "印度", "mumbai"],
+        "Russia": ["ru", "russia", "俄罗斯", "moscow"]
     }
     
     for region, keywords in region_keywords.items():
         if any(keyword in name_lower for keyword in keywords):
             return region
     
-    return "其他"
+    return "Other"
 
 def parse_subscription(url):
     """解析订阅内容"""
@@ -452,38 +452,38 @@ def test_node_latency(node, timeout=5, test_count=3):
     use_random = False
     latency_range = None
     
-    if "hong kong" in name_lower or "香港" in region:
+    if "hong kong" in name_lower or "Hong Kong" in region:
         use_random = True
         latency_range = (22, 50)
-    elif "japan" in name_lower or "日本" in region:
+    elif "japan" in name_lower or "Japan" in region:
         use_random = True
         latency_range = (40, 80)
-    elif "korea" in name_lower or "韩国" in region:
+    elif "korea" in name_lower or "Korea" in region:
         use_random = True
-        latency_range = (20, 80)  # 控制在80毫秒内
-    elif "singapore" in name_lower or "新加坡" in region:
+        latency_range = (20, 80)  # Keep within 80ms
+    elif "singapore" in name_lower or "Singapore" in region:
         use_random = True
         latency_range = (60, 80)
-    elif "taiwan" in name_lower or "台湾" in region:
+    elif "taiwan" in name_lower or "Taiwan" in region:
         use_random = True
         latency_range = (20, 60)
     
     if use_random and latency_range:
-        # 生成随机延迟
+        # Generate random latency
         latencies = []
         for _ in range(test_count):
             latency = random.uniform(latency_range[0], latency_range[1])
             latencies.append(latency)
-            time.sleep(0.1)  # 模拟测试间隔
+            time.sleep(0.1)  # Simulate test interval
         
         avg_latency = sum(latencies) / len(latencies)
         return {
-            "status": "在线",
+            "status": "online",
             "latency": avg_latency,
-            "success_rate": 100.0  # 假设都成功
+            "success_rate": 100.0  # Assume all successful
         }
     else:
-        # 其他地区使用真实测试
+        # Other regions use real testing
         latencies = []
         
         for _ in range(test_count):
@@ -505,20 +505,20 @@ def test_node_latency(node, timeout=5, test_count=3):
         if latencies:
             avg_latency = sum(latencies) / len(latencies)
             return {
-                "status": "在线",
+                "status": "online",
                 "latency": avg_latency,
                 "success_rate": len(latencies) / test_count * 100
             }
         else:
             return {
-                "status": "离线",
+                "status": "offline",
                 "latency": 9999,
                 "success_rate": 0
             }
 
 def test_all_nodes(nodes):
     """批量测试所有节点"""
-    print("\n正在测试所有节点，请稍候...")
+    print("\nTesting all nodes, please wait...")
     
     # 计算字符串在终端中的显示宽度（中文字符占2个宽度）
     def get_display_width(s):
@@ -550,11 +550,11 @@ def test_all_nodes(nodes):
     # 打印表头
     print("="*85)
     header = (
-        f"{pad_to_width('节点名称', NAME_WIDTH)}"
-        f"{pad_to_width('地区', REGION_WIDTH)}"
-        f"{pad_to_width('状态', STATUS_WIDTH)}"
-        f"{pad_to_width('延迟(ms)', LATENCY_WIDTH)}"
-        f"成功率"
+        f"{pad_to_width('Node Name', NAME_WIDTH)}"
+        f"{pad_to_width('Region', REGION_WIDTH)}"
+        f"{pad_to_width('Status', STATUS_WIDTH)}"
+        f"{pad_to_width('Latency(ms)', LATENCY_WIDTH)}"
+        f"Success Rate"
     )
     print(header)
     print("="*85)
@@ -574,10 +574,10 @@ def test_all_nodes(nodes):
                 
                 # 准备各列数据
                 name = node['name']
-                region = node.get('region', '未知')
+                region = node.get('region', 'Unknown')
                 
                 # 实时显示结果
-                if result["status"] == "在线":
+                if result["status"] == "online":
                     latency_val = f"{result['latency']:.1f}"
                     if result['latency'] < 100:
                         latency_colored = f"{Colors.GREEN}{latency_val}{Colors.END}"
@@ -590,16 +590,16 @@ def test_all_nodes(nodes):
                     line = (
                         f"{pad_to_width(name, NAME_WIDTH)}"
                         f"{pad_to_width(region, REGION_WIDTH)}"
-                        f"{Colors.GREEN}在线{Colors.END}{' ' * (STATUS_WIDTH - get_display_width('在线'))}"
+                        f"{Colors.GREEN}Online{Colors.END}{' ' * (STATUS_WIDTH - get_display_width('Online'))}"
                         f"{latency_colored}{' ' * (LATENCY_WIDTH - get_display_width(latency_val))}"
                         f"{result['success_rate']:.0f}%"
                     )
                 else:
-                    # 离线状态
+                    # Offline status
                     line = (
                         f"{pad_to_width(name, NAME_WIDTH)}"
                         f"{pad_to_width(region, REGION_WIDTH)}"
-                        f"{Colors.RED}离线{Colors.END}{' ' * (STATUS_WIDTH - get_display_width('离线'))}"
+                        f"{Colors.RED}Offline{Colors.END}{' ' * (STATUS_WIDTH - get_display_width('Offline'))}"
                         f"-{' ' * (LATENCY_WIDTH - 1)}"
                         f"{result['success_rate']:.0f}%"
                     )
@@ -610,24 +610,24 @@ def test_all_nodes(nodes):
                 # 错误处理
                 line = (
                     f"{pad_to_width(node['name'], NAME_WIDTH)}"
-                    f"{pad_to_width(node.get('region', '未知'), REGION_WIDTH)}"
-                    f"{Colors.RED}错误{Colors.END}"
+                    f"{pad_to_width(node.get('region', 'Unknown'), REGION_WIDTH)}"
+                    f"{Colors.RED}Error{Colors.END}"
                 )
                 print(line)
     
     print("="*85)
     
-    # 统计信息
-    online_nodes = [n for n in results if n["status"] == "在线"]
+    # Statistics
+    online_nodes = [n for n in results if n["status"] == "online"]
     if online_nodes:
         avg_latency = sum(n["latency"] for n in online_nodes) / len(online_nodes)
         best_node = min(online_nodes, key=lambda x: x["latency"])
-        print(f"\n在线节点: {len(online_nodes)}/{len(nodes)}")
-        print(f"平均延迟: {avg_latency:.1f}ms")
-        print(f"\n{Colors.GREEN}推荐节点: {best_node['name']} (延迟: {best_node['latency']:.1f}ms){Colors.END}")
+        print(f"\nOnline nodes: {len(online_nodes)}/{len(nodes)}")
+        print(f"Average latency: {avg_latency:.1f}ms")
+        print(f"\n{Colors.GREEN}Recommended node: {best_node['name']} (Latency: {best_node['latency']:.1f}ms){Colors.END}")
         return best_node
     else:
-        print(f"\n{Colors.RED}所有节点都无法连接！{Colors.END}")
+        print(f"\n{Colors.RED}All nodes are unreachable!{Colors.END}")
         return None
 
 def configure_system_proxy():
@@ -799,9 +799,9 @@ def get_current_ip():
             data = json.loads(result.stdout)
             return f"{data.get('ip', 'Unknown')} ({data.get('city', '')}, {data.get('country', '')})"
         else:
-            return "无法获取 IP 信息"
+            return "Unable to get IP info"
     except Exception as e:
-        return f"错误: {str(e)}"
+        return f"Error: {str(e)}"
 
 def get_current_node_info():
     """获取当前使用的节点信息"""
@@ -815,7 +815,7 @@ def get_current_node_info():
             "settings" not in config["outbounds"][0] or
             "vnext" not in config["outbounds"][0]["settings"] or
             not config["outbounds"][0]["settings"]["vnext"]):
-            return "配置格式错误"
+            return "Invalid configuration format"
             
         current_server = config["outbounds"][0]["settings"]["vnext"][0]["address"]
         current_port = config["outbounds"][0]["settings"]["vnext"][0]["port"]
@@ -824,11 +824,11 @@ def get_current_node_info():
         all_nodes = get_available_nodes()
         for node in all_nodes:
             if node["server"] == current_server and node["port"] == current_port:
-                return f"{node['name']} ({node.get('region', '未知')})"
+                return f"{node['name']} ({node.get('region', 'Unknown')})"
         
-        return "未知节点"
+        return "Unknown Node"
     except:
-        return "配置文件不存在或格式错误"
+        return "Configuration file not found or invalid format"
 
 def get_available_nodes():
     """获取所有可用节点（订阅+内置）"""
@@ -940,7 +940,7 @@ def switch_node():
             # 测试节点
             print("\n正在测试节点延迟...")
             test_result = test_node_latency(selected_node)
-            if test_result["status"] == "在线":
+            if test_result["status"] == "online":
                 print(f"✓ 节点延迟: {test_result['latency']:.1f}ms")
             else:
                 print("✗ 节点无法连接")
@@ -984,7 +984,7 @@ def update_subscription():
         # 显示统计
         region_count = {}
         for node in nodes:
-            region = node.get("region", "未知")
+            region = node.get("region", "Unknown")
             region_count[region] = region_count.get(region, 0) + 1
         
         print("\n订阅更新成功！")
@@ -1235,7 +1235,7 @@ def show_proxy_status():
                 print(f"{Colors.BLUE}▸ 正在测试延迟...{Colors.END}", end='', flush=True)
                 test_result = test_node_latency(current_node, timeout=3, test_count=2)
                 
-                if test_result['status'] == '在线':
+                if test_result['status'] == 'online':
                     latency = test_result['latency']
                     if latency < 50:
                         color = Colors.GREEN
@@ -1245,11 +1245,11 @@ def show_proxy_status():
                         color = Colors.RED
                     print(f"\r{Colors.BLUE}▸ 节点延迟: {color}{latency:.1f}ms{Colors.END} {Colors.GREEN}{Colors.END}")
                 else:
-                    print(f"\r{Colors.BLUE}▸ 节点延迟: {Colors.RED}无法连接{Colors.END} {Colors.RED}[离线]{Colors.END}")
+                    print(f"\r{Colors.BLUE}▸ Node latency: {Colors.RED}Unreachable{Colors.END} {Colors.RED}[Offline]{Colors.END}")
             except:
                 pass
     elif server_port:
-        print(f"{Colors.BLUE}▸ 当前节点: {Colors.BOLD}{Colors.RED}未知节点{Colors.END}")
+        print(f"{Colors.BLUE}▸ Current node: {Colors.BOLD}{Colors.RED}Unknown Node{Colors.END}")
         print(f"{Colors.BLUE}▸ 服务器: {Colors.END}{server_port} {Colors.PURPLE}[{protocol}]{Colors.END}")
     else:
         print(f"{Colors.RED}▸ 节点状态: 未配置{Colors.END}")
@@ -1407,12 +1407,12 @@ def main():
                 if current_node:
                     print(f"\n当前节点: {current_node['name']}")
                     result = test_node_latency(current_node, test_count=5)
-                    if result["status"] == "在线":
+                    if result["status"] == "online":
                         print(f"✓ 状态: {result['status']}")
                         print(f"✓ 延迟: {result['latency']:.1f}ms")
                         print(f"✓ 成功率: {result['success_rate']:.0f}%")
                     else:
-                        print(f"✗ 节点离线")
+                        print(f"✗ Node is offline")
                 else:
                     log("无法识别当前节点", "ERROR")
             
