@@ -1158,8 +1158,12 @@ def get_current_node_detail():
     except:
         return None, None, None
 
-def show_proxy_status():
-    """显示代理状态（美化版本）"""
+def show_proxy_status(refresh_mode=False):
+    """显示代理状态（美化版本）
+    
+    Args:
+        refresh_mode: 是否启用自动刷新模式，每3秒刷新一次
+    """
     print()
     print(f"{Colors.CYAN}╔══════════════════════════════════════════════════════════════╗{Colors.END}")
     print(f"{Colors.CYAN}║                    🌐 V2Ray Proxy Status                     ║{Colors.END}")
@@ -1316,6 +1320,10 @@ def show_proxy_status():
         print()
     else:
         print()
+    
+    # 如果在刷新模式下，显示退出提示
+    if refresh_mode:
+        print(f"{Colors.PURPLE}Press Ctrl+C to exit{Colors.END}")
 
 def show_main_menu():
     """显示主菜单"""
@@ -1339,6 +1347,7 @@ def show_main_menu():
     print("   53. 恢复配置备份")
     print("   54. 查看日志")
     print("   55. 显示代理状态（美化版）")
+    print("   56. 实时监控代理状态（3秒刷新）")
     print("6. 帮助")
     print("0. 退出")
     print("="*60)
@@ -1351,11 +1360,23 @@ def main():
             # 直接显示代理状态并退出
             show_proxy_status()
             return 0
+        elif sys.argv[1] == "proxy_status_refresh":
+            # 进入实时刷新模式
+            try:
+                while True:
+                    # 清屏
+                    os.system('clear')
+                    show_proxy_status(refresh_mode=True)
+                    time.sleep(3)
+            except KeyboardInterrupt:
+                print("\n\nExiting monitor mode...")
+                return 0
         elif sys.argv[1] in ["--help", "-h"]:
             print(f"使用方法: {sys.argv[0]} [选项]")
             print("\n选项:")
-            print("  proxy_status    显示当前代理状态信息")
-            print("  --help, -h      显示此帮助信息")
+            print("  proxy_status         显示当前代理状态信息")
+            print("  proxy_status_refresh 实时监控代理状态（3秒刷新）")
+            print("  --help, -h           显示此帮助信息")
             print("\n无参数时进入交互式菜单")
             return 0
     
@@ -1452,6 +1473,20 @@ def main():
             elif choice == "55":
                 # 显示代理状态（美化版）
                 show_proxy_status()
+            
+            elif choice == "56":
+                # 实时监控代理状态
+                print("\n进入实时监控模式，每3秒刷新一次...")
+                print("按 Ctrl+C 退出监控")
+                time.sleep(1)
+                try:
+                    while True:
+                        # 清屏
+                        os.system('clear')
+                        show_proxy_status(refresh_mode=True)
+                        time.sleep(3)
+                except KeyboardInterrupt:
+                    print("\n\n已退出监控模式")
             
             elif choice == "6":
                 # 帮助
