@@ -29,7 +29,6 @@ import socket
 import requests
 import tempfile
 import shutil
-import random
 from urllib.parse import urlparse, unquote, parse_qs
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -444,77 +443,37 @@ def generate_v2ray_config(node):
 
 def test_node_latency(node, timeout=5, test_count=3):
     """测试节点延迟（高级版本）"""
-    # 检查是否需要使用随机延迟
-    region = node.get("region", "")
-    name_lower = node.get("name", "").lower()
+    latencies = []
     
-    # 根据地区或节点名称判断是否使用随机延迟
-    use_random = False
-    latency_range = None
+    for _ in range(test_count):
+        try:
+            start_time = time.time()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            result = sock.connect_ex((node["server"], node["port"]))
+            sock.close()
+            
+            if result == 0:
+                latency = (time.time() - start_time) * 1000
+                latencies.append(latency)
+            
+            time.sleep(0.2)
+        except:
+            pass
     
-    if "hong kong" in name_lower or "Hong Kong" in region:
-        use_random = True
-        latency_range = (22, 50)
-    elif "japan" in name_lower or "Japan" in region:
-        use_random = True
-        latency_range = (40, 80)
-    elif "korea" in name_lower or "Korea" in region:
-        use_random = True
-        latency_range = (20, 80)  # Keep within 80ms
-    elif "singapore" in name_lower or "Singapore" in region:
-        use_random = True
-        latency_range = (60, 80)
-    elif "taiwan" in name_lower or "Taiwan" in region:
-        use_random = True
-        latency_range = (20, 60)
-    
-    if use_random and latency_range:
-        # Generate random latency
-        latencies = []
-        for _ in range(test_count):
-            latency = random.uniform(latency_range[0], latency_range[1])
-            latencies.append(latency)
-            time.sleep(0.1)  # Simulate test interval
-        
+    if latencies:
         avg_latency = sum(latencies) / len(latencies)
         return {
             "status": "online",
             "latency": avg_latency,
-            "success_rate": 100.0  # Assume all successful
+            "success_rate": len(latencies) / test_count * 100
         }
     else:
-        # Other regions use real testing
-        latencies = []
-        
-        for _ in range(test_count):
-            try:
-                start_time = time.time()
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(timeout)
-                result = sock.connect_ex((node["server"], node["port"]))
-                sock.close()
-                
-                if result == 0:
-                    latency = (time.time() - start_time) * 1000
-                    latencies.append(latency)
-                
-                time.sleep(0.2)
-            except:
-                pass
-        
-        if latencies:
-            avg_latency = sum(latencies) / len(latencies)
-            return {
-                "status": "online",
-                "latency": avg_latency,
-                "success_rate": len(latencies) / test_count * 100
-            }
-        else:
-            return {
-                "status": "offline",
-                "latency": 9999,
-                "success_rate": 0
-            }
+        return {
+            "status": "offline",
+            "latency": 9999,
+            "success_rate": 0
+        }
 
 def test_all_nodes(nodes):
     """批量测试所有节点"""
