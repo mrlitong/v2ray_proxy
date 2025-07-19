@@ -1203,22 +1203,59 @@ def show_proxy_status():
     """显示代理状态（美化版本）"""
     print()
     print(f"{Colors.CYAN}╔══════════════════════════════════════════════════════════════╗{Colors.END}")
-    print(f"{Colors.CYAN}║                    🌐 V2Ray 代理状态信息                     ║{Colors.END}")
+    print(f"{Colors.CYAN}║                    🌐 V2Ray Proxy Status                     ║{Colors.END}")
     print(f"{Colors.CYAN}╚══════════════════════════════════════════════════════════════╝{Colors.END}")
+    
+    # 计算运行时间（从2019-02-04 23:14:18开始）
+    from datetime import datetime
+    start_time = datetime(2019, 2, 4, 23, 14, 18)
+    current_time = datetime.now()
+    time_diff = current_time - start_time
+    
+    # 计算年月日时分秒
+    total_seconds = int(time_diff.total_seconds())
+    years = total_seconds // (365 * 24 * 3600)
+    remaining = total_seconds % (365 * 24 * 3600)
+    months = remaining // (30 * 24 * 3600)
+    remaining = remaining % (30 * 24 * 3600)
+    days = remaining // (24 * 3600)
+    remaining = remaining % (24 * 3600)
+    hours = remaining // 3600
+    remaining = remaining % 3600
+    minutes = remaining // 60
+    seconds = remaining % 60
+    
+    # 格式化运行时间显示
+    time_parts = []
+    if years > 0:
+        time_parts.append(f"{years} year{'s' if years != 1 else ''}")
+    if months > 0:
+        time_parts.append(f"{months} month{'s' if months != 1 else ''}")
+    if days > 0:
+        time_parts.append(f"{days} day{'s' if days != 1 else ''}")
+    if hours > 0:
+        time_parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    if minutes > 0:
+        time_parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    if seconds > 0:
+        time_parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
+    
+    time_str = " ".join(time_parts)
+    print(f"{Colors.BLUE}▸ Running Time: {Colors.GREEN}{time_str}{Colors.END}")
     
     # 获取V2Ray服务状态
     v2ray_status = run_command("systemctl is-active v2ray", check=False)
     if v2ray_status == "active":
-        print(f"{Colors.GREEN}▸ V2Ray 服务状态: ✓ 运行中{Colors.END}")
+        print(f"{Colors.GREEN}▸ V2Ray Service: ✓ Running{Colors.END}")
     else:
-        print(f"{Colors.RED}▸ V2Ray 服务状态: ✗ 已停止{Colors.END}")
+        print(f"{Colors.RED}▸ V2Ray Service: ✗ Stopped{Colors.END}")
     
     # 获取节点信息
     node_name, server_port, protocol = get_current_node_detail()
     
     if node_name:
-        print(f"{Colors.BLUE}▸ 当前节点: {Colors.BOLD}{Colors.CYAN}🔸 {node_name} 🔸{Colors.END}")
-        print(f"{Colors.BLUE}▸ 服务器: {Colors.END}{server_port} {Colors.PURPLE}[{protocol}]{Colors.END}")
+        print(f"{Colors.BLUE}▸ Current Node: {Colors.BOLD}{Colors.CYAN}🔸 {node_name} 🔸{Colors.END}")
+        print(f"{Colors.BLUE}▸ Server: {Colors.END}{server_port} {Colors.PURPLE}[{protocol}]{Colors.END}")
         
         # 测试当前节点延迟
         if server_port:
@@ -1232,7 +1269,7 @@ def show_proxy_status():
                     "region": node_name.split(' - ')[0] if ' - ' in node_name else ''
                 }
                 
-                print(f"{Colors.BLUE}▸ 正在测试延迟...{Colors.END}", end='', flush=True)
+                print(f"{Colors.BLUE}▸ Testing latency...{Colors.END}", end='', flush=True)
                 test_result = test_node_latency(current_node, timeout=3, test_count=2)
                 
                 if test_result['status'] == 'online':
@@ -1243,16 +1280,16 @@ def show_proxy_status():
                         color = Colors.YELLOW
                     else:
                         color = Colors.RED
-                    print(f"\r{Colors.BLUE}▸ 节点延迟: {color}{latency:.1f}ms{Colors.END} {Colors.GREEN}{Colors.END}")
+                    print(f"\r{Colors.BLUE}▸ Node Latency: {color}{latency:.1f}ms{Colors.END} {Colors.GREEN}{Colors.END}")
                 else:
                     print(f"\r{Colors.BLUE}▸ Node latency: {Colors.RED}Unreachable{Colors.END} {Colors.RED}[Offline]{Colors.END}")
             except:
                 pass
     elif server_port:
         print(f"{Colors.BLUE}▸ Current node: {Colors.BOLD}{Colors.RED}Unknown Node{Colors.END}")
-        print(f"{Colors.BLUE}▸ 服务器: {Colors.END}{server_port} {Colors.PURPLE}[{protocol}]{Colors.END}")
+        print(f"{Colors.BLUE}▸ Server: {Colors.END}{server_port} {Colors.PURPLE}[{protocol}]{Colors.END}")
     else:
-        print(f"{Colors.RED}▸ 节点状态: 未配置{Colors.END}")
+        print(f"{Colors.RED}▸ Node Status: Not configured{Colors.END}")
     
     # 检查代理环境变量
     print()
@@ -1261,7 +1298,7 @@ def show_proxy_status():
     all_proxy = os.environ.get('all_proxy', '')
     
     if http_proxy or https_proxy or all_proxy:
-        print(f"{Colors.GREEN}▸ 终端代理: ✓ 已配置{Colors.END}")
+        print(f"{Colors.GREEN}▸ Terminal Proxy: ✓ Configured{Colors.END}")
         if http_proxy:
             print(f"  {Colors.BLUE}HTTP:{Colors.END}  {http_proxy}")
         if https_proxy:
@@ -1269,7 +1306,7 @@ def show_proxy_status():
         if all_proxy:
             print(f"  {Colors.BLUE}SOCKS:{Colors.END} {all_proxy}")
     else:
-        print(f"{Colors.YELLOW}▸ 终端代理: ⚠ 未配置{Colors.END}")
+        print(f"{Colors.YELLOW}▸ Terminal Proxy: ⚠ Not configured{Colors.END}")
     
     # 获取IP信息
     print()
@@ -1277,7 +1314,7 @@ def show_proxy_status():
     
     proxy_failed = False
     if v2ray_status == "active":
-        print(f"{Colors.BLUE}▸ 正在检测网络连接...{Colors.END}")
+        print(f"{Colors.BLUE}▸ Checking network connection...{Colors.END}")
         
         # 获取代理IP
         proxy_info = get_proxy_ip_info()
@@ -1287,10 +1324,10 @@ def show_proxy_status():
             proxy_city = proxy_info.get('city', '')
             proxy_org = proxy_info.get('org', '')
             
-            print(f"{Colors.GREEN}▸ 代理IP: {Colors.YELLOW}{proxy_ip}{Colors.END} {Colors.BLUE}({proxy_country} {proxy_city}){Colors.END}")
+            print(f"{Colors.GREEN}▸ Proxy IP: {Colors.YELLOW}{proxy_ip}{Colors.END} {Colors.BLUE}({proxy_country} {proxy_city}){Colors.END}")
             print(f"{Colors.GREEN}▸ ISP: {Colors.END}{proxy_org}")
         else:
-            print(f"{Colors.RED}▸ 代理连接: ✗ 无法连接到代理服务器{Colors.END}")
+            print(f"{Colors.RED}▸ Proxy Connection: ✗ Unable to connect to proxy server{Colors.END}")
             proxy_failed = True
         
         # 获取本地IP（用于对比）
@@ -1298,7 +1335,7 @@ def show_proxy_status():
         if direct_info:
             direct_ip = direct_info.get('ip', 'Unknown')
             direct_country = direct_info.get('country', '')
-            print(f"{Colors.BLUE}▸ 本地IP: {Colors.END}{direct_ip} {Colors.PURPLE}({direct_country}){Colors.END}")
+            print(f"{Colors.BLUE}▸ Local IP: {Colors.END}{direct_ip} {Colors.PURPLE}({direct_country}){Colors.END}")
     else:
         # V2Ray未运行，只显示本地IP
         direct_info = get_direct_ip_info()
@@ -1306,17 +1343,17 @@ def show_proxy_status():
             direct_ip = direct_info.get('ip', 'Unknown')
             direct_country = direct_info.get('country', '')
             direct_city = direct_info.get('city', '')
-            print(f"{Colors.BLUE}▸ 当前IP: {Colors.END}{direct_ip} {Colors.PURPLE}({direct_country} {direct_city}){Colors.END}")
+            print(f"{Colors.BLUE}▸ Current IP: {Colors.END}{direct_ip} {Colors.PURPLE}({direct_country} {direct_city}){Colors.END}")
     
     print(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
     
     # 只在代理连接失败时显示快捷提示
     if proxy_failed:
         print()
-        print(f"{Colors.PURPLE}💡 快捷命令:{Colors.END}")
-        print(f"  {Colors.BLUE}▸{Colors.END} 切换节点: {Colors.YELLOW}python3 {sys.argv[0]}{Colors.END}")
-        print(f"  {Colors.BLUE}▸{Colors.END} 查看状态: {Colors.YELLOW}sudo systemctl status v2ray{Colors.END}")
-        print(f"  {Colors.BLUE}▸{Colors.END} 重启服务: {Colors.YELLOW}sudo systemctl restart v2ray{Colors.END}")
+        print(f"{Colors.PURPLE}💡 Quick Commands:{Colors.END}")
+        print(f"  {Colors.BLUE}▸{Colors.END} Switch Node: {Colors.YELLOW}python3 {sys.argv[0]}{Colors.END}")
+        print(f"  {Colors.BLUE}▸{Colors.END} Check Status: {Colors.YELLOW}sudo systemctl status v2ray{Colors.END}")
+        print(f"  {Colors.BLUE}▸{Colors.END} Restart Service: {Colors.YELLOW}sudo systemctl restart v2ray{Colors.END}")
         print()
     else:
         print()
