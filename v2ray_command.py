@@ -1158,24 +1158,16 @@ def get_current_node_detail():
     except:
         return None, None, None
 
-def show_proxy_status(refresh_mode=False):
-    """显示代理状态（美化版本）
+def collect_proxy_status_data():
+    """收集代理状态数据"""
+    data = {}
     
-    Args:
-        refresh_mode: 是否启用自动刷新模式，每3秒刷新一次
-    """
-    print()
-    print(f"{Colors.CYAN}╔══════════════════════════════════════════════════════════════╗{Colors.END}")
-    print(f"{Colors.CYAN}║                    🌐 V2Ray Proxy Status                     ║{Colors.END}")
-    print(f"{Colors.CYAN}╚══════════════════════════════════════════════════════════════╝{Colors.END}")
-    
-    # 计算运行时间（从2019-02-04 23:14:18开始）
+    # 计算运行时间
     from datetime import datetime
     start_time = datetime(2019, 2, 4, 23, 14, 18)
     current_time = datetime.now()
     time_diff = current_time - start_time
     
-    # 计算年月日时分秒
     total_seconds = int(time_diff.total_seconds())
     years = total_seconds // (365 * 24 * 3600)
     remaining = total_seconds % (365 * 24 * 3600)
@@ -1188,7 +1180,6 @@ def show_proxy_status(refresh_mode=False):
     minutes = remaining // 60
     seconds = remaining % 60
     
-    # 格式化运行时间显示
     time_parts = []
     if years > 0:
         time_parts.append(f"{years} year{'s' if years != 1 else ''}")
@@ -1203,127 +1194,159 @@ def show_proxy_status(refresh_mode=False):
     if seconds > 0:
         time_parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
     
-    time_str = " ".join(time_parts)
-    print(f"{Colors.BLUE}▸ Running Time: {Colors.GREEN}{time_str}{Colors.END}")
+    data['time_str'] = " ".join(time_parts)
     
     # 获取V2Ray服务状态
-    v2ray_status = run_command("systemctl is-active v2ray", check=False)
-    if v2ray_status == "active":
-        print(f"{Colors.GREEN}▸ V2Ray Service: ✓ Running{Colors.END}")
-    else:
-        print(f"{Colors.RED}▸ V2Ray Service: ✗ Stopped{Colors.END}")
+    data['v2ray_status'] = run_command("systemctl is-active v2ray", check=False)
     
     # 获取节点信息
-    node_name, server_port, protocol = get_current_node_detail()
+    data['node_name'], data['server_port'], data['protocol'] = get_current_node_detail()
     
-    if node_name:
-        print(f"{Colors.BLUE}▸ Current Node: {Colors.BOLD}{Colors.CYAN}🔸 {node_name} 🔸{Colors.END}")
-        print(f"{Colors.BLUE}▸ Server: {Colors.END}{server_port} {Colors.PURPLE}[{protocol}]{Colors.END}")
-        
-        # 测试当前节点延迟
-        if server_port:
-            try:
-                server, port = server_port.split(':')
-                # 构建节点信息用于测试
-                current_node = {
-                    "server": server,
-                    "port": int(port),
-                    "name": node_name,
-                    "region": node_name.split(' - ')[0] if ' - ' in node_name else ''
-                }
-                
-                print(f"{Colors.BLUE}▸ Testing latency...{Colors.END}", end='', flush=True)
-                test_result = test_node_latency(current_node, timeout=3, test_count=2)
-                
-                if test_result['status'] == 'online':
-                    latency = test_result['latency']
-                    if latency < 50:
-                        color = Colors.GREEN
-                    elif latency < 100:
-                        color = Colors.YELLOW
-                    else:
-                        color = Colors.RED
-                    print(f"\r{Colors.BLUE}▸ Node Latency: {color}{latency:.1f}ms{Colors.END} {Colors.GREEN}{Colors.END}")
-                else:
-                    print(f"\r{Colors.BLUE}▸ Node latency: {Colors.RED}Unreachable{Colors.END} {Colors.RED}[Offline]{Colors.END}")
-            except:
-                pass
-    elif server_port:
-        print(f"{Colors.BLUE}▸ Current node: {Colors.BOLD}{Colors.RED}Unknown Node{Colors.END}")
-        print(f"{Colors.BLUE}▸ Server: {Colors.END}{server_port} {Colors.PURPLE}[{protocol}]{Colors.END}")
-    else:
-        print(f"{Colors.RED}▸ Node Status: Not configured{Colors.END}")
+    # 测试当前节点延迟
+    data['latency_result'] = None
+    if data['server_port']:
+        try:
+            server, port = data['server_port'].split(':')
+            current_node = {
+                "server": server,
+                "port": int(port),
+                "name": data['node_name'] or 'Unknown',
+                "region": data['node_name'].split(' - ')[0] if data['node_name'] and ' - ' in data['node_name'] else ''
+            }
+            data['latency_result'] = test_node_latency(current_node, timeout=3, test_count=2)
+        except:
+            pass
     
     # 检查代理环境变量
-    print()
-    http_proxy = os.environ.get('http_proxy', '')
-    https_proxy = os.environ.get('https_proxy', '')
-    all_proxy = os.environ.get('all_proxy', '')
-    
-    if http_proxy or https_proxy or all_proxy:
-        print(f"{Colors.GREEN}▸ Terminal Proxy: ✓ Configured{Colors.END}")
-        if http_proxy:
-            print(f"  {Colors.BLUE}HTTP:{Colors.END}  {http_proxy}")
-        if https_proxy:
-            print(f"  {Colors.BLUE}HTTPS:{Colors.END} {https_proxy}")
-        if all_proxy:
-            print(f"  {Colors.BLUE}SOCKS:{Colors.END} {all_proxy}")
-    else:
-        print(f"{Colors.YELLOW}▸ Terminal Proxy: ⚠ Not configured{Colors.END}")
+    data['http_proxy'] = os.environ.get('http_proxy', '')
+    data['https_proxy'] = os.environ.get('https_proxy', '')
+    data['all_proxy'] = os.environ.get('all_proxy', '')
     
     # 获取IP信息
-    print()
-    print(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+    data['proxy_info'] = None
+    data['direct_info'] = None
+    
+    if data['v2ray_status'] == "active":
+        data['proxy_info'] = get_proxy_ip_info()
+        data['direct_info'] = get_direct_ip_info()
+    else:
+        data['direct_info'] = get_direct_ip_info()
+    
+    return data
+
+def render_proxy_status(data, refresh_mode=False):
+    """渲染代理状态显示"""
+    output = []
+    
+    output.append("")
+    output.append(f"{Colors.CYAN}╔══════════════════════════════════════════════════════════════╗{Colors.END}")
+    output.append(f"{Colors.CYAN}║                    🌐 V2Ray Proxy Status                     ║{Colors.END}")
+    output.append(f"{Colors.CYAN}╚══════════════════════════════════════════════════════════════╝{Colors.END}")
+    
+    # 运行时间
+    output.append(f"{Colors.BLUE}▸ Running Time: {Colors.GREEN}{data['time_str']}{Colors.END}")
+    
+    # V2Ray服务状态
+    if data['v2ray_status'] == "active":
+        output.append(f"{Colors.GREEN}▸ V2Ray Service: ✓ Running{Colors.END}")
+    else:
+        output.append(f"{Colors.RED}▸ V2Ray Service: ✗ Stopped{Colors.END}")
+    
+    # 节点信息
+    if data['node_name']:
+        output.append(f"{Colors.BLUE}▸ Current Node: {Colors.BOLD}{Colors.CYAN}🔸 {data['node_name']} 🔸{Colors.END}")
+        output.append(f"{Colors.BLUE}▸ Server: {Colors.END}{data['server_port']} {Colors.PURPLE}[{data['protocol']}]{Colors.END}")
+        
+        # 节点延迟
+        if data['latency_result']:
+            if data['latency_result']['status'] == 'online':
+                latency = data['latency_result']['latency']
+                if latency < 50:
+                    color = Colors.GREEN
+                elif latency < 100:
+                    color = Colors.YELLOW
+                else:
+                    color = Colors.RED
+                output.append(f"{Colors.BLUE}▸ Node Latency: {color}{latency:.1f}ms{Colors.END}")
+            else:
+                output.append(f"{Colors.BLUE}▸ Node latency: {Colors.RED}Unreachable{Colors.END} {Colors.RED}[Offline]{Colors.END}")
+    elif data['server_port']:
+        output.append(f"{Colors.BLUE}▸ Current node: {Colors.BOLD}{Colors.RED}Unknown Node{Colors.END}")
+        output.append(f"{Colors.BLUE}▸ Server: {Colors.END}{data['server_port']} {Colors.PURPLE}[{data['protocol']}]{Colors.END}")
+    else:
+        output.append(f"{Colors.RED}▸ Node Status: Not configured{Colors.END}")
+    
+    # 代理环境变量
+    output.append("")
+    if data['http_proxy'] or data['https_proxy'] or data['all_proxy']:
+        output.append(f"{Colors.GREEN}▸ Terminal Proxy: ✓ Configured{Colors.END}")
+        if data['http_proxy']:
+            output.append(f"  {Colors.BLUE}HTTP:{Colors.END}  {data['http_proxy']}")
+        if data['https_proxy']:
+            output.append(f"  {Colors.BLUE}HTTPS:{Colors.END} {data['https_proxy']}")
+        if data['all_proxy']:
+            output.append(f"  {Colors.BLUE}SOCKS:{Colors.END} {data['all_proxy']}")
+    else:
+        output.append(f"{Colors.YELLOW}▸ Terminal Proxy: ⚠ Not configured{Colors.END}")
+    
+    # IP信息
+    output.append("")
+    output.append(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
     
     proxy_failed = False
-    if v2ray_status == "active":
-        print(f"{Colors.BLUE}▸ Checking network connection...{Colors.END}")
-        
-        # 获取代理IP
-        proxy_info = get_proxy_ip_info()
-        if proxy_info:
-            proxy_ip = proxy_info.get('ip', 'Unknown')
-            proxy_country = proxy_info.get('country', '')
-            proxy_city = proxy_info.get('city', '')
-            proxy_org = proxy_info.get('org', '')
+    if data['v2ray_status'] == "active":
+        if data['proxy_info']:
+            proxy_ip = data['proxy_info'].get('ip', 'Unknown')
+            proxy_country = data['proxy_info'].get('country', '')
+            proxy_city = data['proxy_info'].get('city', '')
+            proxy_org = data['proxy_info'].get('org', '')
             
-            print(f"{Colors.GREEN}▸ Proxy IP: {Colors.YELLOW}{proxy_ip}{Colors.END} {Colors.BLUE}({proxy_country} {proxy_city}){Colors.END}")
-            print(f"{Colors.GREEN}▸ ISP: {Colors.END}{proxy_org}")
+            output.append(f"{Colors.GREEN}▸ Proxy IP: {Colors.YELLOW}{proxy_ip}{Colors.END} {Colors.BLUE}({proxy_country} {proxy_city}){Colors.END}")
+            output.append(f"{Colors.GREEN}▸ ISP: {Colors.END}{proxy_org}")
         else:
-            print(f"{Colors.RED}▸ Proxy Connection: ✗ Unable to connect to proxy server{Colors.END}")
+            output.append(f"{Colors.RED}▸ Proxy Connection: ✗ Unable to connect to proxy server{Colors.END}")
             proxy_failed = True
         
-        # 获取本地IP（用于对比）
-        direct_info = get_direct_ip_info()
-        if direct_info:
-            direct_ip = direct_info.get('ip', 'Unknown')
-            direct_country = direct_info.get('country', '')
-            print(f"{Colors.BLUE}▸ Local IP: {Colors.END}{direct_ip} {Colors.PURPLE}({direct_country}){Colors.END}")
+        if data['direct_info']:
+            direct_ip = data['direct_info'].get('ip', 'Unknown')
+            direct_country = data['direct_info'].get('country', '')
+            output.append(f"{Colors.BLUE}▸ Local IP: {Colors.END}{direct_ip} {Colors.PURPLE}({direct_country}){Colors.END}")
     else:
-        # V2Ray未运行，只显示本地IP
-        direct_info = get_direct_ip_info()
-        if direct_info:
-            direct_ip = direct_info.get('ip', 'Unknown')
-            direct_country = direct_info.get('country', '')
-            direct_city = direct_info.get('city', '')
-            print(f"{Colors.BLUE}▸ Current IP: {Colors.END}{direct_ip} {Colors.PURPLE}({direct_country} {direct_city}){Colors.END}")
+        if data['direct_info']:
+            direct_ip = data['direct_info'].get('ip', 'Unknown')
+            direct_country = data['direct_info'].get('country', '')
+            direct_city = data['direct_info'].get('city', '')
+            output.append(f"{Colors.BLUE}▸ Current IP: {Colors.END}{direct_ip} {Colors.PURPLE}({direct_country} {direct_city}){Colors.END}")
     
-    print(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+    output.append(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
     
-    # 只在代理连接失败时显示快捷提示
+    # 快捷提示
     if proxy_failed:
-        print()
-        print(f"{Colors.PURPLE}💡 Quick Commands:{Colors.END}")
-        print(f"  {Colors.BLUE}▸{Colors.END} Switch Node: {Colors.YELLOW}python3 {sys.argv[0]}{Colors.END}")
-        print(f"  {Colors.BLUE}▸{Colors.END} Check Status: {Colors.YELLOW}sudo systemctl status v2ray{Colors.END}")
-        print(f"  {Colors.BLUE}▸{Colors.END} Restart Service: {Colors.YELLOW}sudo systemctl restart v2ray{Colors.END}")
-        print()
+        output.append("")
+        output.append(f"{Colors.PURPLE}💡 Quick Commands:{Colors.END}")
+        output.append(f"  {Colors.BLUE}▸{Colors.END} Switch Node: {Colors.YELLOW}python3 {sys.argv[0]}{Colors.END}")
+        output.append(f"  {Colors.BLUE}▸{Colors.END} Check Status: {Colors.YELLOW}sudo systemctl status v2ray{Colors.END}")
+        output.append(f"  {Colors.BLUE}▸{Colors.END} Restart Service: {Colors.YELLOW}sudo systemctl restart v2ray{Colors.END}")
+        output.append("")
     else:
-        print()
+        output.append("")
     
-    # 如果在刷新模式下，显示退出提示
+    # 刷新模式提示
     if refresh_mode:
-        print(f"{Colors.PURPLE}Press Ctrl+C to exit{Colors.END}")
+        output.append(f"{Colors.PURPLE}Press Ctrl+C to exit{Colors.END}")
+    
+    return "\n".join(output)
+
+def show_proxy_status(refresh_mode=False):
+    """显示代理状态（美化版本）
+    
+    Args:
+        refresh_mode: 是否启用自动刷新模式，每3秒刷新一次
+    """
+    # 收集数据
+    data = collect_proxy_status_data()
+    # 渲染并显示
+    print(render_proxy_status(data, refresh_mode))
 
 def show_main_menu():
     """显示主菜单"""
@@ -1364,9 +1387,11 @@ def main():
             # 进入实时刷新模式
             try:
                 while True:
-                    # 清屏
+                    # 先收集数据
+                    data = collect_proxy_status_data()
+                    # 然后清屏并显示
                     os.system('clear')
-                    show_proxy_status(refresh_mode=True)
+                    print(render_proxy_status(data, refresh_mode=True))
                     time.sleep(3)
             except KeyboardInterrupt:
                 print("\n\nExiting monitor mode...")
@@ -1481,9 +1506,11 @@ def main():
                 time.sleep(1)
                 try:
                     while True:
-                        # 清屏
+                        # 先收集数据
+                        data = collect_proxy_status_data()
+                        # 然后清屏并显示
                         os.system('clear')
-                        show_proxy_status(refresh_mode=True)
+                        print(render_proxy_status(data, refresh_mode=True))
                         time.sleep(3)
                 except KeyboardInterrupt:
                     print("\n\n已退出监控模式")
