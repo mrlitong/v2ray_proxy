@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-V2Ray 综合管理工具
-整合了自动安装、节点管理、订阅管理等所有功能
+V2Ray Comprehensive Management Tool
+Integrates automatic installation, node management, subscription management and all other functions
 
-功能特性：
-1. 完整的V2Ray安装和部署
-2. 订阅管理（支持vmess/vless）
-3. 节点切换和管理（支持订阅节点和内置节点）
-4. 高级延迟测试
-5. 系统代理配置
-6. ProxyChains4同步
-7. 配置备份和恢复
-8. 详细的日志记录
-9. 代理状态美化显示
+Features:
+1. Complete V2Ray installation and deployment
+2. Subscription management (supports vmess/vless)
+3. Node switching and management (supports subscription nodes and built-in nodes)
+4. Advanced latency testing
+5. System proxy configuration
+6. ProxyChains4 synchronization
+7. Configuration backup and restore
+8. Detailed logging
+9. Beautified proxy status display
 
-作者：Claude Assistant
-版本：2.1.0
+Author: Claude Assistant
+Version: 2.1.0
 """
 
 import os
@@ -33,13 +33,13 @@ from urllib.parse import urlparse, unquote, parse_qs
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
-# 全局配置
+# Global configuration
 CONFIG_DIR = "/etc/v2ray"
 CONFIG_FILE = "/etc/v2ray/config.json"
 SUBSCRIPTION_FILE = "/etc/v2ray/subscription.json"
 LOG_FILE = "/var/log/v2ray_command.log"
 
-# 颜色输出
+# Color output
 class Colors:
     HEADER = '\033[95m'
     BLUE = '\033[94m'
@@ -51,7 +51,7 @@ class Colors:
     CYAN = '\033[96m'
     PURPLE = '\033[95m'
 
-# 内置节点（来自v2ray_node_switcher.py）
+# Built-in nodes (from v2ray_node_switcher.py)
 BUILTIN_NODES = [
     # Hong Kong nodes
     {"name": "VIP-v2ray-Hong Kong 01", "server": "andromedae.weltknoten.xyz", "port": 30001, "region": "Hong Kong", "tls": "tls"},
@@ -86,15 +86,15 @@ BUILTIN_NODES = [
     {"name": "VIP-v2ray-Z-Russia", "server": "andromedae.weltknoten.xyz", "port": 30019, "region": "Russia", "tls": "tls"},
 ]
 
-# 默认UUID（来自v2ray_node_switcher.py）
+# Default UUID (from v2ray_node_switcher.py)
 DEFAULT_UUID = "39a279a5-55bb-3a27-ad9b-6ec81ff5779a"
 
 def log(message, level="INFO"):
-    """记录日志"""
+    """Log messages"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_message = f"[{timestamp}] [{level}] {message}"
     
-    # 写入日志文件
+    # Write to log file
     try:
         os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
         with open(LOG_FILE, 'a', encoding='utf-8') as f:
@@ -102,7 +102,7 @@ def log(message, level="INFO"):
     except:
         pass
     
-    # 控制台输出
+    # Console output
     if level == "ERROR":
         print(f"{Colors.RED}✗ {message}{Colors.END}")
     elif level == "SUCCESS":
@@ -113,7 +113,7 @@ def log(message, level="INFO"):
         print(f"  {message}")
 
 def run_command(command, capture_output=True, check=True):
-    """执行系统命令"""
+    """Execute system command"""
     try:
         if capture_output:
             result = subprocess.run(command, shell=True, capture_output=True, text=True, check=check)
@@ -121,87 +121,87 @@ def run_command(command, capture_output=True, check=True):
         else:
             return subprocess.run(command, shell=True, check=check)
     except subprocess.CalledProcessError as e:
-        log(f"命令执行失败: {command}\n错误: {e}", "ERROR")
+        log(f"Command failed: {command}\nError: {e}", "ERROR")
         if check:
             raise
         return None
 
 def check_system():
-    """检查系统环境"""
-    log("检查系统环境...", "INFO")
+    """Check system environment"""
+    log("Checking system environment...", "INFO")
     
-    # 检查操作系统
+    # Check operating system
     if not os.path.exists("/etc/os-release"):
-        log("不支持的操作系统", "ERROR")
+        log("Unsupported operating system", "ERROR")
         return False
     
     os_info = run_command("cat /etc/os-release | grep -E '^(ID|VERSION_ID)='")
     if "ubuntu" not in os_info.lower() and "debian" not in os_info.lower():
-        log("警告：此脚本主要为 Ubuntu/Debian 设计，其他系统可能需要调整", "WARNING")
+        log("Warning: This script is primarily designed for Ubuntu/Debian, other systems may require adjustments", "WARNING")
     
-    # 检查权限
+    # Check permissions
     if os.geteuid() != 0:
-        log("需要 root 权限运行此脚本", "ERROR")
-        log("请使用: sudo python3 " + sys.argv[0], "INFO")
+        log("Root privileges required to run this script", "ERROR")
+        log("Please use: sudo python3 " + sys.argv[0], "INFO")
         return False
     
-    # 检查网络
+    # Check network
     try:
         socket.create_connection(("8.8.8.8", 53), timeout=5)
     except:
-        log("网络连接异常，请检查网络设置", "ERROR")
+        log("Network connection error, please check network settings", "ERROR")
         return False
     
     return True
 
 def install_dependencies():
-    """安装依赖软件"""
-    log("安装必要的依赖...", "INFO")
+    """Install dependencies"""
+    log("Installing necessary dependencies...", "INFO")
     
     dependencies = ["curl", "wget", "unzip", "jq", "proxychains4"]
     
-    # 更新包列表
+    # Update package list
     run_command("apt-get update", capture_output=False)
     
     for dep in dependencies:
         if run_command(f"which {dep}", check=False):
-            log(f"{dep} 已安装", "SUCCESS")
+            log(f"{dep} already installed", "SUCCESS")
         else:
-            log(f"安装 {dep}...", "INFO")
+            log(f"Installing {dep}...", "INFO")
             run_command(f"apt-get install -y {dep}", capture_output=False)
 
 def install_v2ray():
-    """安装 V2Ray"""
-    log("开始安装 V2Ray...", "INFO")
+    """Install V2Ray"""
+    log("Starting V2Ray installation...", "INFO")
     
-    # 检查是否已安装
+    # Check if already installed
     if os.path.exists("/usr/local/bin/v2ray"):
         v2ray_version = run_command("v2ray version | head -1", check=False)
         if v2ray_version:
-            log(f"V2Ray 已安装: {v2ray_version}", "SUCCESS")
+            log(f"V2Ray already installed: {v2ray_version}", "SUCCESS")
             return True
     
-    # 下载安装脚本
-    log("下载 V2Ray 安装脚本...", "INFO")
+    # Download installation script
+    log("Downloading V2Ray installation script...", "INFO")
     install_script = "/tmp/install-release.sh"
     run_command(f"wget -O {install_script} https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh")
     run_command(f"chmod +x {install_script}")
     
-    # 执行安装
-    log("执行 V2Ray 安装...", "INFO")
+    # Execute installation
+    log("Installing V2Ray...", "INFO")
     run_command(f"bash {install_script}", capture_output=False)
     
-    # 创建配置目录
+    # Create configuration directory
     os.makedirs(CONFIG_DIR, exist_ok=True)
     
-    # 清理
+    # Cleanup
     os.remove(install_script)
     
-    log("V2Ray 安装完成", "SUCCESS")
+    log("V2Ray installation completed", "SUCCESS")
     return True
 
 def parse_vmess(vmess_url):
-    """解析 VMess 链接"""
+    """Parse VMess URL"""
     try:
         vmess_data = vmess_url.replace('vmess://', '')
         node_info = json.loads(base64.b64decode(vmess_data).decode('utf-8'))
@@ -224,15 +224,15 @@ def parse_vmess(vmess_url):
             "original": vmess_url
         }
         
-        # 推断地区
+        # Infer region
         node["region"] = infer_region(node["name"])
         return node
     except Exception as e:
-        log(f"解析 VMess 节点失败: {str(e)}", "WARNING")
+        log(f"Failed to parse VMess node: {str(e)}", "WARNING")
         return None
 
 def parse_vless(vless_url):
-    """解析 VLESS 链接"""
+    """Parse VLESS URL"""
     try:
         parsed = urlparse(vless_url)
         params = parse_qs(parsed.query)
@@ -253,29 +253,29 @@ def parse_vless(vless_url):
             "original": vless_url
         }
         
-        # 推断地区
+        # Infer region
         node["region"] = infer_region(node["name"])
         return node
     except Exception as e:
-        log(f"解析 VLESS 节点失败: {str(e)}", "WARNING")
+        log(f"Failed to parse VLESS node: {str(e)}", "WARNING")
         return None
 
 def infer_region(name):
-    """根据节点名称推断地区"""
+    """Infer region from node name"""
     name_lower = name.lower()
     
     region_keywords = {
-        "Hong Kong": ["hk", "hong kong", "香港", "hongkong"],
-        "Japan": ["jp", "japan", "日本", "tokyo"],
-        "Singapore": ["sg", "singapore", "新加坡"],
-        "USA": ["us", "america", "美国", "usa"],
-        "Korea": ["kr", "korea", "韩国", "seoul"],
-        "Taiwan": ["tw", "taiwan", "台湾"],
-        "Canada": ["ca", "canada", "加拿大"],
-        "UK": ["uk", "britain", "英国", "london"],
-        "Germany": ["de", "germany", "德国", "frankfurt"],
-        "India": ["in", "india", "印度", "mumbai"],
-        "Russia": ["ru", "russia", "俄罗斯", "moscow"]
+        "Hong Kong": ["hk", "hong kong", "hongkong"],
+        "Japan": ["jp", "japan", "tokyo"],
+        "Singapore": ["sg", "singapore"],
+        "USA": ["us", "america", "usa"],
+        "Korea": ["kr", "korea", "seoul"],
+        "Taiwan": ["tw", "taiwan"],
+        "Canada": ["ca", "canada"],
+        "UK": ["uk", "britain", "london"],
+        "Germany": ["de", "germany", "frankfurt"],
+        "India": ["in", "india", "mumbai"],
+        "Russia": ["ru", "russia", "moscow"]
     }
     
     for region, keywords in region_keywords.items():
@@ -285,22 +285,22 @@ def infer_region(name):
     return "Other"
 
 def parse_subscription(url):
-    """解析订阅内容"""
-    log(f"获取订阅内容: {url}", "INFO")
+    """Parse subscription content"""
+    log(f"Fetching subscription content: {url}", "INFO")
     
     try:
-        # 获取订阅内容
+        # Get subscription content
         response = requests.get(url, timeout=30)
         response.raise_for_status()
         content = response.text.strip()
         
-        # Base64 解码
+        # Base64 decode
         try:
             decoded = base64.b64decode(content).decode('utf-8')
         except:
             decoded = content
         
-        # 解析节点
+        # Parse nodes
         nodes = []
         for line in decoded.strip().split('\n'):
             line = line.strip()
@@ -316,17 +316,17 @@ def parse_subscription(url):
                 if node:
                     nodes.append(node)
             elif line.startswith('ss://'):
-                log(f"Shadowsocks链接暂不支持", "WARNING")
+                log(f"Shadowsocks links not yet supported", "WARNING")
         
-        log(f"成功解析 {len(nodes)} 个节点", "SUCCESS")
+        log(f"Successfully parsed {len(nodes)} nodes", "SUCCESS")
         return nodes
         
     except Exception as e:
-        log(f"解析订阅失败: {str(e)}", "ERROR")
+        log(f"Failed to parse subscription: {str(e)}", "ERROR")
         return []
 
 def generate_v2ray_config(node):
-    """生成 V2Ray 配置"""
+    """Generate V2Ray configuration"""
     config = {
         "log": {
             "loglevel": "warning"
@@ -352,7 +352,7 @@ def generate_v2ray_config(node):
         }
     }
     
-    # 根据协议生成出站配置
+    # Generate outbound configuration based on protocol
     if node.get("protocol") == "vmess":
         outbound = {
             "protocol": "vmess",
@@ -398,7 +398,7 @@ def generate_v2ray_config(node):
             }
         }
     else:
-        # 默认vmess配置（用于内置节点）
+        # Default vmess configuration (for built-in nodes)
         outbound = {
             "protocol": "vmess",
             "settings": {
@@ -421,7 +421,7 @@ def generate_v2ray_config(node):
             }
         }
     
-    # TLS 配置
+    # TLS configuration
     if node.get("tls") in ["tls", "xtls"]:
         outbound["streamSettings"]["security"] = node.get("tls")
         outbound["streamSettings"]["tlsSettings"] = {
@@ -429,7 +429,7 @@ def generate_v2ray_config(node):
             "allowInsecure": False
         }
     
-    # 网络配置
+    # Network configuration
     if node.get("network") == "ws":
         outbound["streamSettings"]["wsSettings"] = {
             "path": node.get("path", "/"),
@@ -442,7 +442,7 @@ def generate_v2ray_config(node):
     return config
 
 def test_node_latency(node, timeout=5, test_count=3):
-    """测试节点延迟（高级版本）"""
+    """Test node latency (advanced version)"""
     latencies = []
     
     for _ in range(test_count):
@@ -476,37 +476,37 @@ def test_node_latency(node, timeout=5, test_count=3):
         }
 
 def test_all_nodes(nodes):
-    """批量测试所有节点"""
+    """Batch test all nodes"""
     print("\nTesting all nodes, please wait...")
     
-    # 计算字符串在终端中的显示宽度（中文字符占2个宽度）
+    # Calculate string display width in terminal (Chinese characters take 2 widths)
     def get_display_width(s):
-        """计算字符串在终端中的显示宽度"""
+        """Calculate string display width in terminal"""
         width = 0
         for char in s:
-            if '\u4e00' <= char <= '\u9fff':  # 中文字符范围
+            if '\u4e00' <= char <= '\u9fff':  # Chinese character range
                 width += 2
             else:
                 width += 1
         return width
     
-    # 格式化字符串到指定宽度
+    # Format string to specified width
     def pad_to_width(text, target_width):
-        """将文本填充到指定的显示宽度"""
+        """Pad text to specified display width"""
         current_width = get_display_width(text)
         padding_needed = target_width - current_width
         if padding_needed > 0:
             return text + ' ' * padding_needed
         return text
     
-    # 定义列宽
+    # Define column widths
     NAME_WIDTH = 35
-    REGION_WIDTH = 10  # 足够容纳"俄罗斯"（6个显示宽度）+ 一些空间
+    REGION_WIDTH = 10  # Enough for "Russia" (6 display width) + some space
     STATUS_WIDTH = 10
     LATENCY_WIDTH = 15
     RATE_WIDTH = 10
     
-    # 打印表头
+    # Print header
     print("="*85)
     header = (
         f"{pad_to_width('Node Name', NAME_WIDTH)}"
@@ -520,7 +520,7 @@ def test_all_nodes(nodes):
     
     results = []
     
-    # 使用线程池并发测试
+    # Use thread pool for concurrent testing
     with ThreadPoolExecutor(max_workers=5) as executor:
         future_to_node = {executor.submit(test_node_latency, node): node for node in nodes}
         
@@ -531,11 +531,11 @@ def test_all_nodes(nodes):
                 node_result = {**node, **result}
                 results.append(node_result)
                 
-                # 准备各列数据
+                # Prepare column data
                 name = node['name']
                 region = node.get('region', 'Unknown')
                 
-                # 实时显示结果
+                # Display results in real-time
                 if result["status"] == "online":
                     latency_val = f"{result['latency']:.1f}"
                     if result['latency'] < 100:
@@ -545,7 +545,7 @@ def test_all_nodes(nodes):
                     else:
                         latency_colored = f"{Colors.RED}{latency_val}{Colors.END}"
                     
-                    # 构建输出行
+                    # Build output line
                     line = (
                         f"{pad_to_width(name, NAME_WIDTH)}"
                         f"{pad_to_width(region, REGION_WIDTH)}"
@@ -566,7 +566,7 @@ def test_all_nodes(nodes):
                 print(line)
                 
             except Exception as e:
-                # 错误处理
+                # Error handling
                 line = (
                     f"{pad_to_width(node['name'], NAME_WIDTH)}"
                     f"{pad_to_width(node.get('region', 'Unknown'), REGION_WIDTH)}"
@@ -590,35 +590,35 @@ def test_all_nodes(nodes):
         return None
 
 def configure_system_proxy():
-    """配置系统代理"""
-    log("配置系统代理...", "INFO")
+    """Configure system proxy"""
+    log("Configuring system proxy...", "INFO")
     
-    # 配置 ProxyChains4
+    # Configure ProxyChains4
     proxychains_config = "/etc/proxychains4.conf"
     if os.path.exists(proxychains_config):
-        # 备份原配置
+        # Backup original configuration
         shutil.copy(proxychains_config, f"{proxychains_config}.backup")
         
-        # 修改配置
+        # Modify configuration
         with open(proxychains_config, 'r') as f:
             content = f.read()
         
-        # 启用 dynamic_chain
+        # Enable dynamic_chain
         content = content.replace('strict_chain', '#strict_chain')
         content = content.replace('#dynamic_chain', 'dynamic_chain')
         
-        # 设置代理
+        # Set proxy
         if 'socks5  127.0.0.1 10808' not in content:
-            # 替换旧端口
+            # Replace old port
             content = content.replace('socks4 \t127.0.0.1 9050', 'socks5  127.0.0.1 10808')
             content = content.replace('socks5  127.0.0.1 1080', 'socks5  127.0.0.1 10808')
         
         with open(proxychains_config, 'w') as f:
             f.write(content)
         
-        log("ProxyChains4 配置完成", "SUCCESS")
+        log("ProxyChains4 configuration completed", "SUCCESS")
     
-    # 配置 shell 环境变量
+    # Configure shell environment variables
     shell_config = """
 # V2Ray Proxy Configuration
 export http_proxy="http://127.0.0.1:10809"
@@ -655,17 +655,17 @@ proxy_status() {
 }
 """
     
-    # 写入配置文件
+    # Write configuration file
     proxy_sh = "/etc/profile.d/v2ray_proxy.sh"
     with open(proxy_sh, 'w') as f:
         f.write(shell_config)
     
-    log("系统代理环境变量配置完成", "SUCCESS")
-    log("新开终端将自动加载代理设置", "INFO")
-    log("使用 proxy_on/proxy_off/proxy_status 控制代理", "INFO")
+    log("System proxy environment variables configured", "SUCCESS")
+    log("New terminals will automatically load proxy settings", "INFO")
+    log("Use proxy_on/proxy_off/proxy_status to control proxy", "INFO")
 
 def save_subscription(url, nodes):
-    """保存订阅信息"""
+    """Save subscription information"""
     subscription_data = {
         "url": url,
         "nodes": nodes,
@@ -673,66 +673,66 @@ def save_subscription(url, nodes):
         "selected_index": 0
     }
     
-    # 备份现有配置
+    # Backup existing configuration
     if os.path.exists(SUBSCRIPTION_FILE):
         shutil.copy(SUBSCRIPTION_FILE, f"{SUBSCRIPTION_FILE}.backup")
     
     with open(SUBSCRIPTION_FILE, 'w', encoding='utf-8') as f:
         json.dump(subscription_data, f, indent=2, ensure_ascii=False)
     
-    log("订阅信息已保存", "SUCCESS")
+    log("Subscription information saved", "SUCCESS")
 
 def load_subscription():
-    """加载订阅信息"""
+    """Load subscription information"""
     try:
         if os.path.exists(SUBSCRIPTION_FILE):
             with open(SUBSCRIPTION_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         return None
     except Exception as e:
-        log(f"加载订阅配置失败: {str(e)}", "ERROR")
+        log(f"Failed to load subscription configuration: {str(e)}", "ERROR")
         return None
 
 def apply_node_config(node):
-    """应用节点配置"""
-    # 备份当前配置
+    """Apply node configuration"""
+    # Backup current configuration
     if os.path.exists(CONFIG_FILE):
         shutil.copy(CONFIG_FILE, f"{CONFIG_FILE}.backup")
     
-    # 生成新配置
+    # Generate new configuration
     config = generate_v2ray_config(node)
     
-    # 保存配置
+    # Save configuration
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
     
-    # 验证配置
+    # Verify configuration
     result = run_command("/usr/local/bin/v2ray test -config " + CONFIG_FILE, check=False)
     if result and "Configuration OK" in result:
-        log("配置验证通过", "SUCCESS")
+        log("Configuration validation passed", "SUCCESS")
     else:
-        log("配置验证失败，恢复备份", "ERROR")
+        log("Configuration validation failed, restoring backup", "ERROR")
         shutil.copy(f"{CONFIG_FILE}.backup", CONFIG_FILE)
         return False
     
-    # 重启服务
+    # Restart service
     run_command("systemctl daemon-reload")
     run_command("systemctl enable v2ray")
     run_command("systemctl restart v2ray")
     
-    # 检查服务状态
+    # Check service status
     time.sleep(2)
     status = run_command("systemctl is-active v2ray", check=False)
     if status == "active":
-        log(f"V2Ray 服务已启动，使用节点: {node['name']}", "SUCCESS")
+        log(f"V2Ray service started, using node: {node['name']}", "SUCCESS")
         return True
     else:
-        log("V2Ray 服务启动失败", "ERROR")
+        log("V2Ray service failed to start", "ERROR")
         return False
 
 def test_proxy():
-    """测试代理连接"""
-    log("测试代理连接...", "INFO")
+    """Test proxy connection"""
+    log("Testing proxy connection...", "INFO")
     
     test_urls = [
         ("SOCKS5", "curl -s -x socks5h://127.0.0.1:10808 https://ipinfo.io/ip -m 10"),
@@ -742,12 +742,12 @@ def test_proxy():
     for name, cmd in test_urls:
         ip = run_command(cmd, check=False)
         if ip and len(ip) < 20:
-            log(f"{name} 代理测试成功，IP: {ip}", "SUCCESS")
+            log(f"{name} proxy test successful, IP: {ip}", "SUCCESS")
         else:
-            log(f"{name} 代理测试失败", "ERROR")
+            log(f"{name} proxy test failed", "ERROR")
 
 def get_current_ip():
-    """获取当前IP信息"""
+    """Get current IP information"""
     try:
         result = subprocess.run(
             ["curl", "-s", "-x", "socks5h://127.0.0.1:10808", "https://ipinfo.io", "--connect-timeout", "5"],
@@ -763,12 +763,12 @@ def get_current_ip():
         return f"Error: {str(e)}"
 
 def get_current_node_info():
-    """获取当前使用的节点信息"""
+    """Get current node information"""
     try:
         with open(CONFIG_FILE, 'r') as f:
             config = json.load(f)
         
-        # 检查配置结构
+        # Check configuration structure
         if ("outbounds" not in config or 
             not config["outbounds"] or 
             "settings" not in config["outbounds"][0] or
@@ -779,7 +779,7 @@ def get_current_node_info():
         current_server = config["outbounds"][0]["settings"]["vnext"][0]["address"]
         current_port = config["outbounds"][0]["settings"]["vnext"][0]["port"]
         
-        # 查找匹配的节点
+        # Find matching node
         all_nodes = get_available_nodes()
         for node in all_nodes:
             if node["server"] == current_server and node["port"] == current_port:
@@ -790,17 +790,17 @@ def get_current_node_info():
         return "Configuration file not found or invalid format"
 
 def get_available_nodes():
-    """获取所有可用节点（订阅+内置）"""
+    """Get all available nodes (subscription + built-in)"""
     nodes = []
     
-    # 加载订阅节点
+    # Load subscription nodes
     subscription = load_subscription()
     if subscription and subscription.get("nodes"):
         nodes.extend(subscription["nodes"])
     
-    # 添加内置节点（如果没有订阅或需要备用）
+    # Add built-in nodes (if no subscription or need backup)
     if not nodes:
-        # 转换内置节点格式
+        # Convert built-in node format
         for node in BUILTIN_NODES:
             nodes.append({
                 **node,
@@ -811,28 +811,28 @@ def get_available_nodes():
     return nodes
 
 def quick_start():
-    """快速开始（新用户向导）"""
-    print(f"\n{Colors.HEADER}欢迎使用 V2Ray 快速配置向导{Colors.END}")
+    """Quick start (new user guide)"""
+    print(f"\n{Colors.HEADER}Welcome to V2Ray Quick Setup Wizard{Colors.END}")
     print("="*60)
     
-    # 检查系统
+    # Check system
     if not check_system():
         return False
     
-    # 安装依赖和V2Ray
+    # Install dependencies and V2Ray
     install_dependencies()
     install_v2ray()
     
-    # 询问订阅方式
-    print("\n请选择配置方式：")
-    print("1. 使用订阅地址（推荐）")
-    print("2. 使用内置节点")
+    # Ask for subscription method
+    print("\nPlease select configuration method:")
+    print("1. Use subscription URL (recommended)")
+    print("2. Use built-in nodes")
     
-    choice = input("\n请选择 [1-2]: ").strip()
+    choice = input("\nPlease select [1-2]: ").strip()
     
     nodes = []
     if choice == "1":
-        sub_url = input("\n请输入 V2Ray 订阅地址: ").strip()
+        sub_url = input("\nPlease enter V2Ray subscription URL: ").strip()
         if sub_url:
             nodes = parse_subscription(sub_url)
             if nodes:
@@ -841,98 +841,98 @@ def quick_start():
         nodes = [{**node, "protocol": "vmess", "uuid": DEFAULT_UUID} for node in BUILTIN_NODES]
     
     if not nodes:
-        log("未找到可用节点", "ERROR")
+        log("No available nodes found", "ERROR")
         return False
     
-    # 测试并选择最佳节点
-    best_node = test_all_nodes(nodes[:20])  # 只测试前20个
+    # Test and select best node
+    best_node = test_all_nodes(nodes[:20])  # Test only first 20 nodes
     if best_node:
         if apply_node_config(best_node):
             configure_system_proxy()
             test_proxy()
-            log("\n✨ V2Ray 配置完成！", "SUCCESS")
-            print(f"\n当前使用节点: {best_node['name']}")
-            print(f"本地SOCKS5代理: 127.0.0.1:10808")
-            print(f"本地HTTP代理: 127.0.0.1:10809")
+            log("\n✨ V2Ray configuration completed!", "SUCCESS")
+            print(f"\nCurrent node: {best_node['name']}")
+            print(f"Local SOCKS5 proxy: 127.0.0.1:10808")
+            print(f"Local HTTP proxy: 127.0.0.1:10809")
             return True
     
     return False
 
 def switch_node():
-    """切换节点"""
+    """Switch node"""
     nodes = get_available_nodes()
     if not nodes:
-        log("没有可用节点", "ERROR")
+        log("No available nodes", "ERROR")
         return
     
-    # 显示节点列表
+    # Display node list
     print("\n" + "="*60)
-    print("可用节点列表")
+    print("Available Node List")
     print("="*60)
     
-    # 按地区分组
+    # Group by region
     regions = {}
     for i, node in enumerate(nodes):
-        region = node.get("region", "其他")
+        region = node.get("region", "Other")
         if region not in regions:
             regions[region] = []
         regions[region].append((i, node))
     
     for region, region_nodes in regions.items():
-        print(f"\n【{region}】")
+        print(f"\n[{region}]")
         for i, node in region_nodes:
             print(f"  {i+1:3d}. {node['name']:<30} {node['server']}:{node['port']}")
     
     print("\n" + "="*60)
     
-    # 选择节点
+    # Select node
     try:
-        choice = input(f"\n请选择节点 [1-{len(nodes)}，0 返回]: ").strip()
+        choice = input(f"\nPlease select node [1-{len(nodes)}, 0 to return]: ").strip()
         if choice == "0":
             return
         
         idx = int(choice) - 1
         if 0 <= idx < len(nodes):
             selected_node = nodes[idx]
-            print(f"\n已选择: {selected_node['name']}")
+            print(f"\nSelected: {selected_node['name']}")
             
-            # 测试节点
-            print("\n正在测试节点延迟...")
+            # Test node
+            print("\nTesting node latency...")
             test_result = test_node_latency(selected_node)
             if test_result["status"] == "online":
-                print(f"✓ 节点延迟: {test_result['latency']:.1f}ms")
+                print(f"✓ Node latency: {test_result['latency']:.1f}ms")
             else:
-                print("✗ 节点无法连接")
-                confirm = input("\n节点可能不可用，是否继续切换? (y/n): ")
+                print("✗ Node unreachable")
+                confirm = input("\nNode may be unavailable, continue switching? (y/n): ")
                 if confirm.lower() != 'y':
                     return
             
-            # 应用配置
+            # Apply configuration
             if apply_node_config(selected_node):
-                print("\n正在验证连接...")
+                print("\nVerifying connection...")
                 ip_info = get_current_ip()
-                print(f"当前 IP: {ip_info}")
+                print(f"Current IP: {ip_info}")
     except ValueError:
-        log("无效的输入", "ERROR")
+        log("Invalid input", "ERROR")
 
 def update_subscription():
-    """更新订阅"""
+    """Update subscription"""
     subscription = load_subscription()
     
     if not subscription:
-        url = input("\n请输入订阅地址: ").strip()
+        url = input("\nPlease enter subscription URL: ").strip()
         if not url:
-            log("订阅地址不能为空", "ERROR")
+            log("Subscription URL cannot be empty", "ERROR")
             return
     else:
         url = subscription.get("url", "")
         update_time = subscription.get("update_time", 0)
         last_update = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(update_time))
         
-        print(f"\n当前订阅地址: {url}")
-        print(f"上次更新时间: {last_update}")
+        print(f"\nCurrent subscription URL: {url}")
+        print(f"Last update time: {last_update}")
         
-        choice = input("\n是否更新订阅? (y/n): ").strip().lower()
+        choice = input("\nUpdate subscription? (y/n): ").strip().lower()
         if choice != 'y':
             return
     
@@ -940,40 +940,40 @@ def update_subscription():
     if nodes:
         save_subscription(url, nodes)
         
-        # 显示统计
+        # Display statistics
         region_count = {}
         for node in nodes:
             region = node.get("region", "Unknown")
             region_count[region] = region_count.get(region, 0) + 1
         
-        print("\n订阅更新成功！")
+        print("\nSubscription updated successfully!")
         for region, count in region_count.items():
-            print(f"  {region}: {count} 个节点")
+            print(f"  {region}: {count} nodes")
 
 def restore_backup():
-    """恢复配置备份"""
+    """Restore configuration backup"""
     backups = []
     
-    # 检查可用备份
+    # Check available backups
     if os.path.exists(f"{CONFIG_FILE}.backup"):
-        backups.append(("V2Ray 配置", CONFIG_FILE, f"{CONFIG_FILE}.backup"))
+        backups.append(("V2Ray configuration", CONFIG_FILE, f"{CONFIG_FILE}.backup"))
     
     if os.path.exists(f"{SUBSCRIPTION_FILE}.backup"):
-        backups.append(("订阅配置", SUBSCRIPTION_FILE, f"{SUBSCRIPTION_FILE}.backup"))
+        backups.append(("Subscription configuration", SUBSCRIPTION_FILE, f"{SUBSCRIPTION_FILE}.backup"))
     
     if os.path.exists("/etc/proxychains4.conf.backup"):
-        backups.append(("ProxyChains4 配置", "/etc/proxychains4.conf", "/etc/proxychains4.conf.backup"))
+        backups.append(("ProxyChains4 configuration", "/etc/proxychains4.conf", "/etc/proxychains4.conf.backup"))
     
     if not backups:
-        log("没有找到任何备份文件", "WARNING")
+        log("No backup files found", "WARNING")
         return
     
-    print("\n可用的备份：")
+    print("\nAvailable backups:")
     for i, (name, _, _) in enumerate(backups, 1):
         print(f"{i}. {name}")
     
     try:
-        choice = input(f"\n请选择要恢复的备份 [1-{len(backups)}，0 取消]: ").strip()
+        choice = input(f"\nPlease select backup to restore [1-{len(backups)}, 0 to cancel]: ").strip()
         if choice == "0":
             return
         
@@ -981,120 +981,120 @@ def restore_backup():
         if 0 <= idx < len(backups):
             name, target, backup = backups[idx]
             shutil.copy(backup, target)
-            log(f"{name}已恢复", "SUCCESS")
+            log(f"{name} restored", "SUCCESS")
             
             if "V2Ray" in name:
-                restart = input("\n是否重启 V2Ray 服务? (y/n): ")
+                restart = input("\nRestart V2Ray service? (y/n): ")
                 if restart.lower() == 'y':
                     run_command("systemctl restart v2ray")
     except ValueError:
-        log("无效的输入", "ERROR")
+        log("Invalid input", "ERROR")
 
 def show_help():
-    """显示帮助信息"""
+    """Display help information"""
     help_text = f"""
 {Colors.HEADER}================================================================================
-                        V2Ray 综合管理工具 - 使用帮助
+                        V2Ray Management Tool - Help Guide
 ================================================================================{Colors.END}
 
-【功能特性】
-  • 完整的 V2Ray 安装和部署流程
-  • 支持订阅解析（vmess/vless协议）
-  • 内置24个备用节点
-  • 高级延迟测试（并发测试、成功率统计）
-  • 系统代理配置（环境变量、ProxyChains4）
-  • 配置备份和恢复功能
-  • 详细的日志记录
+[Features]
+  • Complete V2Ray installation and deployment process
+  • Support subscription parsing (vmess/vless protocols)
+  • 24 built-in backup nodes
+  • Advanced latency testing (concurrent testing, success rate statistics)
+  • System proxy configuration (environment variables, ProxyChains4)
+  • Configuration backup and restore functions
+  • Detailed logging
 
-【主要功能说明】
+[Main Functions]
 
-1. {Colors.BOLD}快速开始{Colors.END}
-   - 适合新用户的一键配置向导
-   - 自动安装 V2Ray 和依赖
-   - 引导配置订阅或使用内置节点
-   - 自动选择最佳节点
+1. {Colors.BOLD}Quick Start{Colors.END}
+   - One-click setup wizard for new users
+   - Automatic V2Ray and dependency installation
+   - Guided configuration for subscription or built-in nodes
+   - Automatic selection of the best node
 
-2. {Colors.BOLD}节点管理{Colors.END}
-   - 切换节点：支持订阅节点和内置节点
-   - 测试当前节点：检测连接状态和延迟
-   - 测试所有节点：批量测试并推荐最佳节点
+2. {Colors.BOLD}Node Management{Colors.END}
+   - Switch nodes: Support subscription and built-in nodes
+   - Test current node: Check connection status and latency
+   - Test all nodes: Batch test and recommend the best node
 
-3. {Colors.BOLD}订阅管理{Colors.END}
-   - 添加/更新订阅地址
-   - 自动解析 vmess/vless 链接
-   - 保存订阅信息供后续使用
+3. {Colors.BOLD}Subscription Management{Colors.END}
+   - Add/update subscription URL
+   - Automatic parsing of vmess/vless links
+   - Save subscription information for future use
 
-4. {Colors.BOLD}系统配置{Colors.END}
-   - 配置系统代理环境变量
-   - 同步 ProxyChains4 配置
-   - 提供 proxy_on/proxy_off 快捷命令
+4. {Colors.BOLD}System Configuration{Colors.END}
+   - Configure system proxy environment variables
+   - Sync ProxyChains4 configuration
+   - Provide proxy_on/proxy_off shortcuts
 
-5. {Colors.BOLD}高级功能{Colors.END}
-   - 查看服务状态和日志
-   - 备份/恢复配置文件
-   - 测试代理连接
+5. {Colors.BOLD}Advanced Features{Colors.END}
+   - View service status and logs
+   - Backup/restore configuration files
+   - Test proxy connection
 
-【配置文件位置】
-  - V2Ray 配置: /etc/v2ray/config.json
-  - 订阅信息: /etc/v2ray/subscription.json
+[Configuration File Locations]
+  - V2Ray config: /etc/v2ray/config.json
+  - Subscription info: /etc/v2ray/subscription.json
   - ProxyChains4: /etc/proxychains4.conf
-  - 系统日志: /var/log/v2ray_command.log
+  - System logs: /var/log/v2ray_command.log
 
-【代理端口】
+[Proxy Ports]
   - SOCKS5: 127.0.0.1:10808
   - HTTP: 127.0.0.1:10809
 
-【使用技巧】
-  - 首次使用请选择"快速开始"
-  - 定期更新订阅获取最新节点
-  - 使用批量测试找出最佳节点
-  - 配置出错时可恢复备份
+[Usage Tips]
+  - First-time users should select "Quick Start"
+  - Regularly update subscriptions for latest nodes
+  - Use batch testing to find the best node
+  - Restore backups when configuration errors occur
 
-【命令行参数】
-  - proxy_status : 显示当前代理状态信息（美化版）
-  - --help, -h : 显示帮助信息
+[Command Line Arguments]
+  - proxy_status : Display current proxy status (beautified)
+  - --help, -h : Display help information
   
-【待实现功能】
-  - --install : 仅安装 V2Ray
-  - --switch <n> : 快速切换到第n个节点
-  - --test : 测试所有节点
-  - --update : 更新订阅
+[To-be-implemented Features]
+  - --install : Install V2Ray only
+  - --switch <n> : Quick switch to node n
+  - --test : Test all nodes
+  - --update : Update subscription
 
 ================================================================================
 """
     print(help_text)
 
 def show_status():
-    """显示当前状态"""
-    print(f"\n{Colors.HEADER}V2Ray 服务状态{Colors.END}")
+    """Display current status"""
+    print(f"\n{Colors.HEADER}V2Ray Service Status{Colors.END}")
     print("="*60)
     
-    # 服务状态
+    # Service status
     status = run_command("systemctl is-active v2ray", check=False)
     if status == "active":
-        print(f"服务状态: {Colors.GREEN}运行中{Colors.END}")
+        print(f"Service Status: {Colors.GREEN}Running{Colors.END}")
     else:
-        print(f"服务状态: {Colors.RED}已停止{Colors.END}")
+        print(f"Service Status: {Colors.RED}Stopped{Colors.END}")
     
-    # 当前节点
-    print(f"当前节点: {Colors.BOLD}{Colors.CYAN}{get_current_node_info()}{Colors.END}")
+    # Current node
+    print(f"Current Node: {Colors.BOLD}{Colors.CYAN}{get_current_node_info()}{Colors.END}")
     
-    # IP信息
+    # IP information
     if status == "active":
-        print("正在获取IP信息...")
+        print("Getting IP information...")
         ip_info = get_current_ip()
-        print(f"当前IP: {ip_info}")
+        print(f"Current IP: {ip_info}")
     
-    # 订阅信息
+    # Subscription info
     subscription = load_subscription()
     if subscription:
         node_count = len(subscription.get("nodes", []))
         update_time = subscription.get("update_time", 0)
         last_update = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(update_time))
-        print(f"\n订阅节点: {node_count} 个")
-        print(f"上次更新: {last_update}")
+        print(f"\nSubscription Nodes: {node_count}")
+        print(f"Last Update: {last_update}")
     else:
-        print("\n订阅节点: 未配置（使用内置节点）")
+        print("\nSubscription Nodes: Not configured (using built-in nodes)")
     
     print("="*60)
 
@@ -1135,7 +1135,7 @@ def get_current_node_detail():
         with open(CONFIG_FILE, 'r') as f:
             config = json.load(f)
         
-        # 获取协议和服务器信息
+        # Get protocol and server information
         outbound = config.get('outbounds', [{}])[0]
         protocol = outbound.get('protocol', 'unknown')
         
@@ -1146,7 +1146,7 @@ def get_current_node_detail():
         else:
             return None, None, protocol
         
-        # 查找节点名称
+        # Find node name
         node_name = None
         all_nodes = get_available_nodes()
         for node in all_nodes:
@@ -1162,7 +1162,7 @@ def collect_proxy_status_data():
     """收集代理状态数据"""
     data = {}
     
-    # 计算运行时间
+    # Calculate running time
     from datetime import datetime
     start_time = datetime(2019, 2, 4, 23, 14, 18)
     current_time = datetime.now()
@@ -1196,13 +1196,13 @@ def collect_proxy_status_data():
     
     data['time_str'] = " ".join(time_parts)
     
-    # 获取V2Ray服务状态
+    # Get V2Ray service status
     data['v2ray_status'] = run_command("systemctl is-active v2ray", check=False)
     
-    # 获取节点信息
+    # Get node information
     data['node_name'], data['server_port'], data['protocol'] = get_current_node_detail()
     
-    # 测试当前节点延迟
+    # Test current node latency
     data['latency_result'] = None
     if data['server_port']:
         try:
@@ -1217,12 +1217,12 @@ def collect_proxy_status_data():
         except:
             pass
     
-    # 检查代理环境变量
+    # Check proxy environment variables
     data['http_proxy'] = os.environ.get('http_proxy', '')
     data['https_proxy'] = os.environ.get('https_proxy', '')
     data['all_proxy'] = os.environ.get('all_proxy', '')
     
-    # 获取IP信息
+    # Get IP information
     data['proxy_info'] = None
     data['direct_info'] = None
     
@@ -1243,21 +1243,21 @@ def render_proxy_status(data, refresh_mode=False):
     output.append(f"{Colors.CYAN}║                    🌐 V2Ray Proxy Status                     ║{Colors.END}")
     output.append(f"{Colors.CYAN}╚══════════════════════════════════════════════════════════════╝{Colors.END}")
     
-    # 运行时间
+    # Running time
     output.append(f"{Colors.BLUE}▸ Running Time: {Colors.GREEN}{data['time_str']}{Colors.END}")
     
-    # V2Ray服务状态
+    # V2Ray service status
     if data['v2ray_status'] == "active":
         output.append(f"{Colors.GREEN}▸ V2Ray Service: ✓ Running{Colors.END}")
     else:
         output.append(f"{Colors.RED}▸ V2Ray Service: ✗ Stopped{Colors.END}")
     
-    # 节点信息
+    # Node information
     if data['node_name']:
         output.append(f"{Colors.BLUE}▸ Current Node: {Colors.BOLD}{Colors.CYAN}🔸 {data['node_name']} 🔸{Colors.END}")
         output.append(f"{Colors.BLUE}▸ Server: {Colors.END}{data['server_port']} {Colors.PURPLE}[{data['protocol']}]{Colors.END}")
         
-        # 节点延迟
+        # Node latency
         if data['latency_result']:
             if data['latency_result']['status'] == 'online':
                 latency = data['latency_result']['latency']
@@ -1276,7 +1276,7 @@ def render_proxy_status(data, refresh_mode=False):
     else:
         output.append(f"{Colors.RED}▸ Node Status: Not configured{Colors.END}")
     
-    # 代理环境变量
+    # Proxy environment variables
     output.append("")
     if data['http_proxy'] or data['https_proxy'] or data['all_proxy']:
         output.append(f"{Colors.GREEN}▸ Terminal Proxy: ✓ Configured{Colors.END}")
@@ -1289,7 +1289,7 @@ def render_proxy_status(data, refresh_mode=False):
     else:
         output.append(f"{Colors.YELLOW}▸ Terminal Proxy: ⚠ Not configured{Colors.END}")
     
-    # IP信息
+    # IP information
     output.append("")
     output.append(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
     
@@ -1320,7 +1320,7 @@ def render_proxy_status(data, refresh_mode=False):
     
     output.append(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
     
-    # 快捷提示
+    # Quick tips
     if proxy_failed:
         output.append("")
         output.append(f"{Colors.PURPLE}💡 Quick Commands:{Colors.END}")
@@ -1331,65 +1331,65 @@ def render_proxy_status(data, refresh_mode=False):
     else:
         output.append("")
     
-    # 刷新模式提示
+    # Refresh mode prompt
     if refresh_mode:
         output.append(f"{Colors.PURPLE}Press Ctrl+C to exit{Colors.END}")
     
     return "\n".join(output)
 
 def show_proxy_status(refresh_mode=False):
-    """显示代理状态（美化版本）
+    """Display proxy status (beautified version)
     
     Args:
-        refresh_mode: 是否启用自动刷新模式，每3秒刷新一次
+        refresh_mode: Enable auto-refresh mode, refresh every 3 seconds
     """
-    # 收集数据
+    # Collect data
     data = collect_proxy_status_data()
-    # 渲染并显示
+    # Render and display
     print(render_proxy_status(data, refresh_mode))
 
 def show_main_menu():
-    """显示主菜单"""
-    print(f"\n{Colors.BOLD}V2Ray 综合管理工具 v2.1{Colors.END}")
+    """Display main menu"""
+    print(f"\n{Colors.BOLD}V2Ray Management Tool v2.1{Colors.END}")
     print("="*60)
-    print(f"当前节点: {Colors.BOLD}{Colors.CYAN}{get_current_node_info()}{Colors.END}")
+    print(f"Current Node: {Colors.BOLD}{Colors.CYAN}{get_current_node_info()}{Colors.END}")
     print("="*60)
-    print("1. 快速开始（推荐新用户）")
-    print("2. 节点管理")
-    print("   21. 切换节点")
-    print("   22. 测试当前节点")
-    print("   23. 测试所有节点")
-    print("3. 订阅管理")
-    print("   31. 更新订阅")
-    print("4. 系统配置")
-    print("   41. 配置系统代理")
-    print("   42. 同步 ProxyChains4")
-    print("5. 高级功能")
-    print("   51. 查看服务状态")
-    print("   52. 测试代理连接")
-    print("   53. 恢复配置备份")
-    print("   54. 查看日志")
-    print("   55. 显示代理状态（美化版）")
-    print("   56. 实时监控代理状态（3秒刷新）")
-    print("6. 帮助")
-    print("0. 退出")
+    print("1. Quick Start (recommended for new users)")
+    print("2. Node Management")
+    print("   21. Switch Node")
+    print("   22. Test Current Node")
+    print("   23. Test All Nodes")
+    print("3. Subscription Management")
+    print("   31. Update Subscription")
+    print("4. System Configuration")
+    print("   41. Configure System Proxy")
+    print("   42. Sync ProxyChains4")
+    print("5. Advanced Features")
+    print("   51. View Service Status")
+    print("   52. Test Proxy Connection")
+    print("   53. Restore Configuration Backup")
+    print("   54. View Logs")
+    print("   55. Show Proxy Status (beautified)")
+    print("   56. Real-time Monitor Proxy Status (3s refresh)")
+    print("6. Help")
+    print("0. Exit")
     print("="*60)
 
 def main():
-    """主函数"""
-    # 检查命令行参数
+    """Main function"""
+    # Check command line arguments
     if len(sys.argv) > 1:
         if sys.argv[1] == "proxy_status":
-            # 直接显示代理状态并退出
+            # Display proxy status directly and exit
             show_proxy_status()
             return 0
         elif sys.argv[1] == "proxy_status_refresh":
-            # 进入实时刷新模式
+            # Enter real-time refresh mode
             try:
                 while True:
-                    # 先收集数据
+                    # Collect data first
                     data = collect_proxy_status_data()
-                    # 然后清屏并显示
+                    # Then clear screen and display
                     os.system('clear')
                     print(render_proxy_status(data, refresh_mode=True))
                     time.sleep(3)
@@ -1397,41 +1397,41 @@ def main():
                 print("\n\nExiting monitor mode...")
                 return 0
         elif sys.argv[1] in ["--help", "-h"]:
-            print(f"使用方法: {sys.argv[0]} [选项]")
-            print("\n选项:")
-            print("  proxy_status         显示当前代理状态信息")
-            print("  proxy_status_refresh 实时监控代理状态（3秒刷新）")
-            print("  --help, -h           显示此帮助信息")
-            print("\n无参数时进入交互式菜单")
+            print(f"Usage: {sys.argv[0]} [options]")
+            print("\nOptions:")
+            print("  proxy_status         Display current proxy status information")
+            print("  proxy_status_refresh Real-time monitor proxy status (3s refresh)")
+            print("  --help, -h           Display this help information")
+            print("\nEnter interactive menu when no arguments provided")
             return 0
     
-    # 进入交互式菜单
-    print(f"{Colors.HEADER}V2Ray 综合管理工具{Colors.END}")
-    print(f"版本: 2.1.0 | 适用: Ubuntu/Debian\n")
+    # Enter interactive menu
+    print(f"{Colors.HEADER}V2Ray Management Tool{Colors.END}")
+    print(f"Version: 2.1.0 | Platform: Ubuntu/Debian\n")
     
     while True:
         show_main_menu()
-        choice = input("请选择操作: ").strip()
+        choice = input("Please select operation: ").strip()
         
         try:
             if choice == "0":
-                print("\n感谢使用！")
+                print("\nThank you for using!")
                 break
             
             elif choice == "1":
-                # 快速开始
+                # Quick start
                 quick_start()
             
             elif choice == "21":
-                # 切换节点
+                # Switch node
                 switch_node()
             
             elif choice == "22":
-                # 测试当前节点
+                # Test current node
                 nodes = get_available_nodes()
                 current_node = None
                 
-                # 查找当前节点
+                # Find current node
                 try:
                     with open(CONFIG_FILE, 'r') as f:
                         config = json.load(f)
@@ -1459,56 +1459,56 @@ def main():
                     log("无法识别当前节点", "ERROR")
             
             elif choice == "23":
-                # 测试所有节点
+                # Test all nodes
                 nodes = get_available_nodes()
                 test_all_nodes(nodes)
             
             elif choice == "31":
-                # 更新订阅
+                # Update subscription
                 update_subscription()
             
             elif choice == "41":
-                # 配置系统代理
+                # Configure system proxy
                 configure_system_proxy()
             
             elif choice == "42":
-                # 同步 ProxyChains4
+                # Sync ProxyChains4
                 run_command("sudo sed -i 's/socks5  127.0.0.1 1080/socks5  127.0.0.1 10808/g' /etc/proxychains4.conf")
                 log("ProxyChains4 配置已同步", "SUCCESS")
             
             elif choice == "51":
-                # 查看服务状态
+                # View service status
                 show_status()
             
             elif choice == "52":
-                # 测试代理
+                # Test proxy
                 test_proxy()
             
             elif choice == "53":
-                # 恢复备份
+                # Restore backup
                 restore_backup()
             
             elif choice == "54":
-                # 查看日志
+                # View logs
                 if os.path.exists(LOG_FILE):
                     run_command(f"tail -n 50 {LOG_FILE}", capture_output=False)
                 else:
                     log("日志文件不存在", "WARNING")
             
             elif choice == "55":
-                # 显示代理状态（美化版）
+                # Show proxy status (beautified)
                 show_proxy_status()
             
             elif choice == "56":
-                # 实时监控代理状态
+                # Real-time monitor proxy status
                 print("\n进入实时监控模式，每3秒刷新一次...")
                 print("按 Ctrl+C 退出监控")
                 time.sleep(1)
                 try:
                     while True:
-                        # 先收集数据
+                        # Collect data first
                         data = collect_proxy_status_data()
-                        # 然后清屏并显示
+                        # Then clear screen and display
                         os.system('clear')
                         print(render_proxy_status(data, refresh_mode=True))
                         time.sleep(3)
@@ -1516,21 +1516,21 @@ def main():
                     print("\n\n已退出监控模式")
             
             elif choice == "6":
-                # 帮助
+                # Help
                 show_help()
             
             else:
-                log("无效的选择", "WARNING")
+                log("Invalid choice", "WARNING")
             
             if choice != "0":
-                input("\n按回车键继续...")
+                input("\nPress Enter to continue...")
                 
         except KeyboardInterrupt:
-            print("\n\n操作已取消")
+            print("\n\nOperation cancelled")
             break
         except Exception as e:
-            log(f"发生错误: {str(e)}", "ERROR")
-            input("\n按回车键继续...")
+            log(f"Error occurred: {str(e)}", "ERROR")
+            input("\nPress Enter to continue...")
 
 if __name__ == "__main__":
     try:
@@ -1539,5 +1539,5 @@ if __name__ == "__main__":
         print("\n\n操作已取消")
         sys.exit(1)
     except Exception as e:
-        log(f"发生错误: {str(e)}", "ERROR")
+        log(f"Error occurred: {str(e)}", "ERROR")
         sys.exit(1)
