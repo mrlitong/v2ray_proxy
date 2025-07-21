@@ -538,12 +538,22 @@ def test_all_nodes(nodes):
                 # Display results in real-time
                 if result["status"] == "online":
                     latency_val = f"{result['latency']:.1f}"
-                    if result['latency'] < 100:
+                    if result['latency'] <= 80:
                         latency_colored = f"{Colors.GREEN}{latency_val}{Colors.END}"
-                    elif result['latency'] < 300:
+                    elif result['latency'] <= 150:
                         latency_colored = f"{Colors.YELLOW}{latency_val}{Colors.END}"
                     else:
                         latency_colored = f"{Colors.RED}{latency_val}{Colors.END}"
+                    
+                    # Format success rate with color
+                    success_rate = result['success_rate']
+                    success_rate_val = f"{success_rate:.0f}%"
+                    if success_rate >= 90:
+                        success_rate_colored = f"{Colors.GREEN}{success_rate_val}{Colors.END}"
+                    elif success_rate >= 80:
+                        success_rate_colored = f"{Colors.YELLOW}{success_rate_val}{Colors.END}"
+                    else:
+                        success_rate_colored = f"{Colors.RED}{success_rate_val}{Colors.END}"
                     
                     # Build output line
                     line = (
@@ -551,16 +561,21 @@ def test_all_nodes(nodes):
                         f"{pad_to_width(region, REGION_WIDTH)}"
                         f"{Colors.GREEN}Online{Colors.END}{' ' * (STATUS_WIDTH - get_display_width('Online'))}"
                         f"{latency_colored}{' ' * (LATENCY_WIDTH - get_display_width(latency_val))}"
-                        f"{result['success_rate']:.0f}%"
+                        f"{success_rate_colored}"
                     )
                 else:
                     # Offline status
+                    success_rate = result['success_rate']
+                    success_rate_val = f"{success_rate:.0f}%"
+                    # Offline nodes always show red success rate
+                    success_rate_colored = f"{Colors.RED}{success_rate_val}{Colors.END}"
+                    
                     line = (
                         f"{pad_to_width(name, NAME_WIDTH)}"
                         f"{pad_to_width(region, REGION_WIDTH)}"
                         f"{Colors.RED}Offline{Colors.END}{' ' * (STATUS_WIDTH - get_display_width('Offline'))}"
                         f"-{' ' * (LATENCY_WIDTH - 1)}"
-                        f"{result['success_rate']:.0f}%"
+                        f"{success_rate_colored}"
                     )
                 
                 print(line)
@@ -1099,7 +1114,7 @@ def show_status():
     print("="*60)
 
 def get_proxy_ip_info():
-    """获取代理IP详细信息"""
+    """Get proxy IP detailed information"""
     try:
         result = subprocess.run(
             ["curl", "-s", "--max-time", "5", "-x", "socks5h://127.0.0.1:10808", "https://ipinfo.io"],
@@ -1113,7 +1128,7 @@ def get_proxy_ip_info():
         return None
 
 def get_direct_ip_info():
-    """获取直连IP详细信息"""
+    """Get direct connection IP detailed information"""
     try:
         result = subprocess.run(
             ["curl", "-s", "--max-time", "3", "--noproxy", "*", "https://ipinfo.io"],
@@ -1127,7 +1142,7 @@ def get_direct_ip_info():
         return None
 
 def get_current_node_detail():
-    """获取当前节点详细信息"""
+    """Get current node detailed information"""
     try:
         if not os.path.exists(CONFIG_FILE):
             return None, None, None
@@ -1159,7 +1174,7 @@ def get_current_node_detail():
         return None, None, None
 
 def collect_proxy_status_data():
-    """收集代理状态数据"""
+    """Collect proxy status data"""
     data = {}
     
     # Calculate running time
@@ -1235,7 +1250,7 @@ def collect_proxy_status_data():
     return data
 
 def render_proxy_status(data, refresh_mode=False):
-    """渲染代理状态显示"""
+    """Render proxy status display"""
     output = []
     
     output.append("")
@@ -1261,9 +1276,9 @@ def render_proxy_status(data, refresh_mode=False):
         if data['latency_result']:
             if data['latency_result']['status'] == 'online':
                 latency = data['latency_result']['latency']
-                if latency < 50:
+                if latency <= 80:
                     color = Colors.GREEN
-                elif latency < 100:
+                elif latency <= 150:
                     color = Colors.YELLOW
                 else:
                     color = Colors.RED
@@ -1447,16 +1462,16 @@ def main():
                     pass
                 
                 if current_node:
-                    print(f"\n当前节点: {current_node['name']}")
+                    print(f"\nCurrent node: {current_node['name']}")
                     result = test_node_latency(current_node, test_count=5)
                     if result["status"] == "online":
-                        print(f"✓ 状态: {result['status']}")
-                        print(f"✓ 延迟: {result['latency']:.1f}ms")
-                        print(f"✓ 成功率: {result['success_rate']:.0f}%")
+                        print(f"✓ Status: {result['status']}")
+                        print(f"✓ Latency: {result['latency']:.1f}ms")
+                        print(f"✓ Success rate: {result['success_rate']:.0f}%")
                     else:
                         print(f"✗ Node is offline")
                 else:
-                    log("无法识别当前节点", "ERROR")
+                    log("Unable to identify current node", "ERROR")
             
             elif choice == "23":
                 # Test all nodes
@@ -1474,7 +1489,7 @@ def main():
             elif choice == "42":
                 # Sync ProxyChains4
                 run_command("sudo sed -i 's/socks5  127.0.0.1 1080/socks5  127.0.0.1 10808/g' /etc/proxychains4.conf")
-                log("ProxyChains4 配置已同步", "SUCCESS")
+                log("ProxyChains4 configuration synchronized", "SUCCESS")
             
             elif choice == "51":
                 # View service status
@@ -1493,7 +1508,7 @@ def main():
                 if os.path.exists(LOG_FILE):
                     run_command(f"tail -n 50 {LOG_FILE}", capture_output=False)
                 else:
-                    log("日志文件不存在", "WARNING")
+                    log("Log file does not exist", "WARNING")
             
             elif choice == "55":
                 # Show proxy status (beautified)
@@ -1501,8 +1516,8 @@ def main():
             
             elif choice == "56":
                 # Real-time monitor proxy status
-                print("\n进入实时监控模式，每3秒刷新一次...")
-                print("按 Ctrl+C 退出监控")
+                print("\nEntering real-time monitoring mode, refreshing every 3 seconds...")
+                print("Press Ctrl+C to exit monitoring")
                 time.sleep(1)
                 try:
                     while True:
@@ -1513,7 +1528,7 @@ def main():
                         print(render_proxy_status(data, refresh_mode=True))
                         time.sleep(3)
                 except KeyboardInterrupt:
-                    print("\n\n已退出监控模式")
+                    print("\n\nExited monitoring mode")
             
             elif choice == "6":
                 # Help
@@ -1536,7 +1551,7 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        print("\n\n操作已取消")
+        print("\n\nOperation cancelled")
         sys.exit(1)
     except Exception as e:
         log(f"Error occurred: {str(e)}", "ERROR")

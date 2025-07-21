@@ -1,58 +1,58 @@
-# V2Ray 代理状态显示功能说明
+# V2Ray Proxy Status Display Feature Documentation
 
-## 功能概述
+## Feature Overview
 
-V2Ray 代理状态显示功能已支持两种显示模式：
+V2Ray proxy status display feature supports two display modes:
 
-### 1. 单次展示模式（自动退出）
-- 显示一次代理状态信息后自动退出
-- 适合快速查看当前状态
+### 1. Single Display Mode (Auto Exit)
+- Displays proxy status information once and then exits automatically
+- Suitable for quickly checking current status
 
-### 2. 实时监控模式（3秒刷新）
-- 每3秒自动刷新一次状态信息
-- 适合持续监控代理状态
-- 按 Ctrl+C 退出监控
+### 2. Real-time Monitoring Mode (3s Refresh)
+- Automatically refreshes status information every 3 seconds
+- Suitable for continuous proxy status monitoring
+- Press Ctrl+C to exit monitoring
 
-#### 优化特性
-- **无顿卡刷新**：先在后台收集所有数据（延迟测试、IP查询等），然后一次性刷新显示
-- **流畅体验**：避免了逐步显示导致的界面闪烁和顿卡
-- **数据完整**：每次刷新都显示完整的状态信息
+#### Optimized Features
+- **Smooth Refresh**: Collects all data in the background first (latency test, IP query, etc.), then refreshes display at once
+- **Fluid Experience**: Avoids interface flickering and stuttering caused by progressive display
+- **Complete Data**: Each refresh displays complete status information
 
-## 使用方法
+## Usage
 
-### 方式一：命令行参数
+### Method 1: Command Line Parameters
 
 ```bash
-# 单次展示模式
+# Single display mode
 sudo python3 v2ray_command.py proxy_status
 
-# 实时监控模式
+# Real-time monitoring mode
 sudo python3 v2ray_command.py proxy_status_refresh
 ```
 
-### 方式二：交互式菜单
+### Method 2: Interactive Menu
 
 ```bash
 sudo python3 v2ray_command.py
 ```
 
-然后选择：
-- 选项 55：显示代理状态（美化版）- 单次展示
-- 选项 56：实时监控代理状态（3秒刷新）
+Then select:
+- Option 55: Show Proxy Status (beautified) - Single display
+- Option 56: Real-time Monitor Proxy Status (3s refresh)
 
-## 显示内容
+## Display Content
 
-状态信息包括：
-- 运行时间
-- V2Ray 服务状态
-- 当前节点信息
-- 节点延迟测试
-- 终端代理配置
-- 代理IP信息
-- 本地IP信息
+Status information includes:
+- Running time
+- V2Ray service status
+- Current node information
+- Node latency test
+- Terminal proxy configuration
+- Proxy IP information
+- Local IP information
 
-## 注意事项
+## Notes
 
-1. 需要 root 权限运行
-2. 实时监控模式下，按 Ctrl+C 退出
-3. 确保 V2Ray 服务正在运行以显示完整信息
+1. Requires root privileges to run
+2. In real-time monitoring mode, press Ctrl+C to exit
+3. Ensure V2Ray service is running to display complete information
