@@ -770,14 +770,61 @@ proxy_status() {
 }
 """
 
-    # Write configuration file
+    # Write configuration file for bash
     proxy_sh = "/etc/profile.d/v2ray_proxy.sh"
     with open(proxy_sh, 'w') as f:
         f.write(shell_config)
 
+    # Check user's shell and configure accordingly
+    user_shell = os.environ.get('SHELL', '/bin/bash')
+    
+    # Get the actual user's home directory (even if running with sudo)
+    actual_user = os.environ.get('SUDO_USER', os.environ.get('USER'))
+    if actual_user:
+        import pwd
+        user_info = pwd.getpwnam(actual_user)
+        actual_home = user_info.pw_dir
+        actual_uid = user_info.pw_uid
+        actual_gid = user_info.pw_gid
+    else:
+        actual_home = os.path.expanduser('~')
+        actual_uid = os.getuid()
+        actual_gid = os.getgid()
+    
+    if 'zsh' in user_shell:
+        # For zsh users, also add to .zshrc
+        zshrc_path = os.path.join(actual_home, '.zshrc')
+        
+        # Check if the source line already exists
+        source_line = 'source /etc/profile.d/v2ray_proxy.sh'
+        
+        try:
+            with open(zshrc_path, 'r') as f:
+                zshrc_content = f.read()
+                
+            if source_line not in zshrc_content:
+                # Add source command to .zshrc
+                with open(zshrc_path, 'a') as f:
+                    f.write(f'\n# V2Ray Proxy Configuration\n{source_line}\n')
+                # Set proper ownership
+                os.chown(zshrc_path, actual_uid, actual_gid)
+                log("Added proxy configuration to ~/.zshrc", "SUCCESS")
+            else:
+                log("Proxy configuration already exists in ~/.zshrc", "INFO")
+        except FileNotFoundError:
+            # Create .zshrc if it doesn't exist
+            with open(zshrc_path, 'w') as f:
+                f.write(f'# V2Ray Proxy Configuration\n{source_line}\n')
+            # Set proper ownership
+            os.chown(zshrc_path, actual_uid, actual_gid)
+            log("Created ~/.zshrc with proxy configuration", "SUCCESS")
+    
     log("System proxy environment variables configured", "SUCCESS")
     log("New terminals will automatically load proxy settings", "INFO")
     log("Use proxy_on/proxy_off/proxy_status to control proxy", "INFO")
+    
+    if 'zsh' in user_shell:
+        log("For current session, run: source ~/.zshrc", "INFO")
 
 def save_subscription(url, nodes):
     """Save subscription information"""
