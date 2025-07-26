@@ -170,6 +170,36 @@ def install_dependencies():
             log(f"Installing {dep}...", "INFO")
             run_command(f"apt-get install -y {dep}", capture_output=False)
 
+def fix_systemd_config_path():
+    """Fix V2Ray systemd service config path to use standard path"""
+    service_file = "/etc/systemd/system/v2ray.service"
+    if not os.path.exists(service_file):
+        service_file = "/lib/systemd/system/v2ray.service"
+        if not os.path.exists(service_file):
+            log("V2Ray service file not found", "WARNING")
+            return
+
+    try:
+        # Read service file
+        with open(service_file, 'r') as f:
+            content = f.read()
+
+        # Check if it's using non-standard config path
+        if "/usr/local/etc/v2ray/config.json" in content:
+            log("Fixing V2Ray service config path...", "INFO")
+            # Replace with standard path
+            content = content.replace("/usr/local/etc/v2ray/config.json", CONFIG_FILE)
+            
+            # Write back
+            with open(service_file, 'w') as f:
+                f.write(content)
+            
+            # Reload systemd
+            run_command("systemctl daemon-reload")
+            log("V2Ray service config path fixed", "SUCCESS")
+    except Exception as e:
+        log(f"Failed to fix service config path: {str(e)}", "WARNING")
+
 def install_v2ray():
     """Install V2Ray"""
     log("Starting V2Ray installation...", "INFO")
@@ -244,6 +274,8 @@ WantedBy=multi-user.target
         else:
             # Create configuration directory
             os.makedirs(CONFIG_DIR, exist_ok=True)
+            # Fix systemd config path if needed
+            fix_systemd_config_path()
             return True
 
     # Online installation (original method)
@@ -258,6 +290,9 @@ WantedBy=multi-user.target
 
     # Create configuration directory
     os.makedirs(CONFIG_DIR, exist_ok=True)
+
+    # Fix configuration path in systemd service file
+    fix_systemd_config_path()
 
     # Cleanup
     os.remove(install_script)
@@ -775,16 +810,31 @@ def load_subscription():
 
 def apply_node_config(node):
     """Apply node configuration"""
-    # Backup current configuration
-    if os.path.exists(CONFIG_FILE):
-        shutil.copy(CONFIG_FILE, f"{CONFIG_FILE}.backup")
+    # Both possible config file locations
+    config_locations = [
+        CONFIG_FILE,  # /etc/v2ray/config.json
+        "/usr/local/etc/v2ray/config.json"
+    ]
 
     # Generate new configuration
     config = generate_v2ray_config(node)
 
-    # Save configuration
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
+    # Save configuration to all possible locations
+    for config_path in config_locations:
+        try:
+            # Backup current configuration if exists
+            if os.path.exists(config_path):
+                shutil.copy(config_path, f"{config_path}.backup")
+
+            # Create directory if not exists
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+
+            # Save configuration
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+            log(f"Configuration saved to: {config_path}", "INFO")
+        except Exception as e:
+            log(f"Failed to save config to {config_path}: {str(e)}", "WARNING")
 
     # Verify configuration
     result = run_command("/usr/local/bin/v2ray test -config " + CONFIG_FILE, check=False)
@@ -792,7 +842,9 @@ def apply_node_config(node):
         log("Configuration validation passed", "SUCCESS")
     else:
         log("Configuration validation failed, restoring backup", "ERROR")
-        shutil.copy(f"{CONFIG_FILE}.backup", CONFIG_FILE)
+        for config_path in config_locations:
+            if os.path.exists(f"{config_path}.backup"):
+                shutil.copy(f"{config_path}.backup", config_path)
         return False
 
     # Restart service
@@ -844,10 +896,26 @@ def get_current_ip():
 
 def get_current_node_info():
     """Get current node information"""
-    try:
-        with open(CONFIG_FILE, 'r') as f:
-            config = json.load(f)
+    # Check multiple possible config locations
+    config_locations = [
+        CONFIG_FILE,  # /etc/v2ray/config.json
+        "/usr/local/etc/v2ray/config.json"
+    ]
 
+    config = None
+    for config_path in config_locations:
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    break
+        except:
+            continue
+
+    if not config:
+        return "Configuration file not found"
+
+    try:
         # Check configuration structure
         if ("outbounds" not in config or
             not config["outbounds"] or
@@ -1208,13 +1276,26 @@ def get_direct_ip_info():
 
 def get_current_node_detail():
     """Get current node detailed information"""
+    # Check multiple possible config locations
+    config_locations = [
+        CONFIG_FILE,  # /etc/v2ray/config.json
+        "/usr/local/etc/v2ray/config.json"
+    ]
+
+    config = None
+    for config_path in config_locations:
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    break
+        except:
+            continue
+
+    if not config:
+        return None, None, None
+
     try:
-        if not os.path.exists(CONFIG_FILE):
-            return None, None, None
-
-        with open(CONFIG_FILE, 'r') as f:
-            config = json.load(f)
-
         # Get protocol and server information
         outbound = config.get('outbounds', [{}])[0]
         protocol = outbound.get('protocol', 'unknown')
