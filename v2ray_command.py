@@ -93,7 +93,7 @@ def log(message, level="INFO"):
     """Log messages"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_message = f"[{timestamp}] [{level}] {message}"
-    
+
     # Write to log file
     try:
         os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
@@ -101,7 +101,7 @@ def log(message, level="INFO"):
             f.write(log_message + "\n")
     except:
         pass
-    
+
     # Console output
     if level == "ERROR":
         print(f"{Colors.RED}✗ {message}{Colors.END}")
@@ -129,40 +129,40 @@ def run_command(command, capture_output=True, check=True):
 def check_system():
     """Check system environment"""
     log("Checking system environment...", "INFO")
-    
+
     # Check operating system
     if not os.path.exists("/etc/os-release"):
         log("Unsupported operating system", "ERROR")
         return False
-    
+
     os_info = run_command("cat /etc/os-release | grep -E '^(ID|VERSION_ID)='")
     if "ubuntu" not in os_info.lower() and "debian" not in os_info.lower():
         log("Warning: This script is primarily designed for Ubuntu/Debian, other systems may require adjustments", "WARNING")
-    
+
     # Check permissions
     if os.geteuid() != 0:
         log("Root privileges required to run this script", "ERROR")
         log("Please use: sudo python3 " + sys.argv[0], "INFO")
         return False
-    
+
     # Check network
     try:
         socket.create_connection(("8.8.8.8", 53), timeout=5)
     except:
         log("Network connection error, please check network settings", "ERROR")
         return False
-    
+
     return True
 
 def install_dependencies():
     """Install dependencies"""
     log("Installing necessary dependencies...", "INFO")
-    
+
     dependencies = ["curl", "wget", "unzip", "jq", "proxychains4"]
-    
+
     # Update package list
     run_command("apt-get update", capture_output=False)
-    
+
     for dep in dependencies:
         if run_command(f"which {dep}", check=False):
             log(f"{dep} already installed", "SUCCESS")
@@ -173,30 +173,95 @@ def install_dependencies():
 def install_v2ray():
     """Install V2Ray"""
     log("Starting V2Ray installation...", "INFO")
-    
+
     # Check if already installed
     if os.path.exists("/usr/local/bin/v2ray"):
         v2ray_version = run_command("v2ray version | head -1", check=False)
         if v2ray_version:
             log(f"V2Ray already installed: {v2ray_version}", "SUCCESS")
             return True
-    
-    # Download installation script
+
+    # Check for local v2ray zip file
+    local_zip = "v2ray-linux-64.zip"
+    if os.path.exists(local_zip):
+        log(f"Found local V2Ray archive: {local_zip}", "INFO")
+        log("Using local file for installation...", "INFO")
+
+        try:
+            # Create directories
+            run_command("mkdir -p /usr/local/bin")
+            run_command("mkdir -p /usr/local/share/v2ray")
+            run_command("mkdir -p /usr/local/etc/v2ray")
+            run_command("mkdir -p /var/log/v2ray")
+
+            # Extract zip file
+            log("Extracting V2Ray files...", "INFO")
+            run_command(f"unzip -o {local_zip} -d /tmp/v2ray-temp")
+
+            # Copy binary files
+            run_command("cp /tmp/v2ray-temp/v2ray /usr/local/bin/")
+            run_command("chmod +x /usr/local/bin/v2ray")
+
+            # Copy other files
+            if os.path.exists("/tmp/v2ray-temp/geoip.dat"):
+                run_command("cp /tmp/v2ray-temp/geoip.dat /usr/local/share/v2ray/")
+            if os.path.exists("/tmp/v2ray-temp/geosite.dat"):
+                run_command("cp /tmp/v2ray-temp/geosite.dat /usr/local/share/v2ray/")
+
+            # Create systemd service file
+            service_content = """[Unit]
+Description=V2Ray Service
+Documentation=https://www.v2fly.org/
+After=network.target nss-lookup.target
+
+[Service]
+User=nobody
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+ExecStart=/usr/local/bin/v2ray run -config /etc/v2ray/config.json
+Restart=on-failure
+RestartPreventExitStatus=23
+
+[Install]
+WantedBy=multi-user.target
+"""
+            with open("/etc/systemd/system/v2ray.service", "w") as f:
+                f.write(service_content)
+
+            # Reload systemd
+            run_command("systemctl daemon-reload")
+
+            # Cleanup
+            run_command("rm -rf /tmp/v2ray-temp")
+
+            log("V2Ray installed successfully from local file", "SUCCESS")
+
+        except Exception as e:
+            log(f"Local installation failed: {str(e)}", "ERROR")
+            log("Falling back to online installation...", "INFO")
+            # Continue with online installation below
+        else:
+            # Create configuration directory
+            os.makedirs(CONFIG_DIR, exist_ok=True)
+            return True
+
+    # Online installation (original method)
     log("Downloading V2Ray installation script...", "INFO")
     install_script = "/tmp/install-release.sh"
     run_command(f"wget -O {install_script} https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh")
     run_command(f"chmod +x {install_script}")
-    
+
     # Execute installation
     log("Installing V2Ray...", "INFO")
     run_command(f"bash {install_script}", capture_output=False)
-    
+
     # Create configuration directory
     os.makedirs(CONFIG_DIR, exist_ok=True)
-    
+
     # Cleanup
     os.remove(install_script)
-    
+
     log("V2Ray installation completed", "SUCCESS")
     return True
 
@@ -205,7 +270,7 @@ def parse_vmess(vmess_url):
     try:
         vmess_data = vmess_url.replace('vmess://', '')
         node_info = json.loads(base64.b64decode(vmess_data).decode('utf-8'))
-        
+
         node = {
             "protocol": "vmess",
             "name": node_info.get("ps", "Unknown"),
@@ -223,7 +288,7 @@ def parse_vmess(vmess_url):
             "alpn": node_info.get("alpn", ""),
             "original": vmess_url
         }
-        
+
         # Infer region
         node["region"] = infer_region(node["name"])
         return node
@@ -236,7 +301,7 @@ def parse_vless(vless_url):
     try:
         parsed = urlparse(vless_url)
         params = parse_qs(parsed.query)
-        
+
         node = {
             "protocol": "vless",
             "name": unquote(parsed.fragment) if parsed.fragment else "Unknown",
@@ -252,7 +317,7 @@ def parse_vless(vless_url):
             "alpn": params.get("alpn", [""])[0],
             "original": vless_url
         }
-        
+
         # Infer region
         node["region"] = infer_region(node["name"])
         return node
@@ -263,7 +328,7 @@ def parse_vless(vless_url):
 def infer_region(name):
     """Infer region from node name"""
     name_lower = name.lower()
-    
+
     region_keywords = {
         "Hong Kong": ["hk", "hong kong", "hongkong"],
         "Japan": ["jp", "japan", "tokyo"],
@@ -277,36 +342,36 @@ def infer_region(name):
         "India": ["in", "india", "mumbai"],
         "Russia": ["ru", "russia", "moscow"]
     }
-    
+
     for region, keywords in region_keywords.items():
         if any(keyword in name_lower for keyword in keywords):
             return region
-    
+
     return "Other"
 
 def parse_subscription(url):
     """Parse subscription content"""
     log(f"Fetching subscription content: {url}", "INFO")
-    
+
     try:
         # Get subscription content
         response = requests.get(url, timeout=30)
         response.raise_for_status()
         content = response.text.strip()
-        
+
         # Base64 decode
         try:
             decoded = base64.b64decode(content).decode('utf-8')
         except:
             decoded = content
-        
+
         # Parse nodes
         nodes = []
         for line in decoded.strip().split('\n'):
             line = line.strip()
             if not line:
                 continue
-                
+
             if line.startswith('vmess://'):
                 node = parse_vmess(line)
                 if node:
@@ -317,10 +382,10 @@ def parse_subscription(url):
                     nodes.append(node)
             elif line.startswith('ss://'):
                 log(f"Shadowsocks links not yet supported", "WARNING")
-        
+
         log(f"Successfully parsed {len(nodes)} nodes", "SUCCESS")
         return nodes
-        
+
     except Exception as e:
         log(f"Failed to parse subscription: {str(e)}", "ERROR")
         return []
@@ -351,7 +416,7 @@ def generate_v2ray_config(node):
             "rules": []
         }
     }
-    
+
     # Generate outbound configuration based on protocol
     if node.get("protocol") == "vmess":
         outbound = {
@@ -420,7 +485,7 @@ def generate_v2ray_config(node):
                 "network": "tcp"
             }
         }
-    
+
     # TLS configuration
     if node.get("tls") in ["tls", "xtls"]:
         outbound["streamSettings"]["security"] = node.get("tls")
@@ -428,7 +493,7 @@ def generate_v2ray_config(node):
             "serverName": node.get("sni", node["server"]),
             "allowInsecure": False
         }
-    
+
     # Network configuration
     if node.get("network") == "ws":
         outbound["streamSettings"]["wsSettings"] = {
@@ -437,14 +502,14 @@ def generate_v2ray_config(node):
                 "Host": node.get("host", node["server"])
             }
         }
-    
+
     config["outbounds"] = [outbound]
     return config
 
 def test_node_latency(node, timeout=5, test_count=3):
     """Test node latency (advanced version)"""
     latencies = []
-    
+
     for _ in range(test_count):
         try:
             start_time = time.time()
@@ -452,15 +517,15 @@ def test_node_latency(node, timeout=5, test_count=3):
             sock.settimeout(timeout)
             result = sock.connect_ex((node["server"], node["port"]))
             sock.close()
-            
+
             if result == 0:
                 latency = (time.time() - start_time) * 1000
                 latencies.append(latency)
-            
+
             time.sleep(0.2)
         except:
             pass
-    
+
     if latencies:
         avg_latency = sum(latencies) / len(latencies)
         return {
@@ -478,7 +543,7 @@ def test_node_latency(node, timeout=5, test_count=3):
 def test_all_nodes(nodes):
     """Batch test all nodes"""
     print("\nTesting all nodes, please wait...")
-    
+
     # Calculate string display width in terminal (Chinese characters take 2 widths)
     def get_display_width(s):
         """Calculate string display width in terminal"""
@@ -489,7 +554,7 @@ def test_all_nodes(nodes):
             else:
                 width += 1
         return width
-    
+
     # Format string to specified width
     def pad_to_width(text, target_width):
         """Pad text to specified display width"""
@@ -498,14 +563,14 @@ def test_all_nodes(nodes):
         if padding_needed > 0:
             return text + ' ' * padding_needed
         return text
-    
+
     # Define column widths
     NAME_WIDTH = 35
     REGION_WIDTH = 10  # Enough for "Russia" (6 display width) + some space
     STATUS_WIDTH = 10
     LATENCY_WIDTH = 15
     RATE_WIDTH = 10
-    
+
     # Print header
     print("="*85)
     header = (
@@ -517,24 +582,24 @@ def test_all_nodes(nodes):
     )
     print(header)
     print("="*85)
-    
+
     results = []
-    
+
     # Use thread pool for concurrent testing
     with ThreadPoolExecutor(max_workers=5) as executor:
         future_to_node = {executor.submit(test_node_latency, node): node for node in nodes}
-        
+
         for future in as_completed(future_to_node):
             node = future_to_node[future]
             try:
                 result = future.result()
                 node_result = {**node, **result}
                 results.append(node_result)
-                
+
                 # Prepare column data
                 name = node['name']
                 region = node.get('region', 'Unknown')
-                
+
                 # Display results in real-time
                 if result["status"] == "online":
                     latency_val = f"{result['latency']:.1f}"
@@ -544,7 +609,7 @@ def test_all_nodes(nodes):
                         latency_colored = f"{Colors.YELLOW}{latency_val}{Colors.END}"
                     else:
                         latency_colored = f"{Colors.RED}{latency_val}{Colors.END}"
-                    
+
                     # Format success rate with color
                     success_rate = result['success_rate']
                     success_rate_val = f"{success_rate:.0f}%"
@@ -554,7 +619,7 @@ def test_all_nodes(nodes):
                         success_rate_colored = f"{Colors.YELLOW}{success_rate_val}{Colors.END}"
                     else:
                         success_rate_colored = f"{Colors.RED}{success_rate_val}{Colors.END}"
-                    
+
                     # Build output line
                     line = (
                         f"{pad_to_width(name, NAME_WIDTH)}"
@@ -569,7 +634,7 @@ def test_all_nodes(nodes):
                     success_rate_val = f"{success_rate:.0f}%"
                     # Offline nodes always show red success rate
                     success_rate_colored = f"{Colors.RED}{success_rate_val}{Colors.END}"
-                    
+
                     line = (
                         f"{pad_to_width(name, NAME_WIDTH)}"
                         f"{pad_to_width(region, REGION_WIDTH)}"
@@ -577,9 +642,9 @@ def test_all_nodes(nodes):
                         f"-{' ' * (LATENCY_WIDTH - 1)}"
                         f"{success_rate_colored}"
                     )
-                
+
                 print(line)
-                
+
             except Exception as e:
                 # Error handling
                 line = (
@@ -588,9 +653,9 @@ def test_all_nodes(nodes):
                     f"{Colors.RED}Error{Colors.END}"
                 )
                 print(line)
-    
+
     print("="*85)
-    
+
     # Statistics
     online_nodes = [n for n in results if n["status"] == "online"]
     if online_nodes:
@@ -607,32 +672,32 @@ def test_all_nodes(nodes):
 def configure_system_proxy():
     """Configure system proxy"""
     log("Configuring system proxy...", "INFO")
-    
+
     # Configure ProxyChains4
     proxychains_config = "/etc/proxychains4.conf"
     if os.path.exists(proxychains_config):
         # Backup original configuration
         shutil.copy(proxychains_config, f"{proxychains_config}.backup")
-        
+
         # Modify configuration
         with open(proxychains_config, 'r') as f:
             content = f.read()
-        
+
         # Enable dynamic_chain
         content = content.replace('strict_chain', '#strict_chain')
         content = content.replace('#dynamic_chain', 'dynamic_chain')
-        
+
         # Set proxy
         if 'socks5  127.0.0.1 10808' not in content:
             # Replace old port
             content = content.replace('socks4 \t127.0.0.1 9050', 'socks5  127.0.0.1 10808')
             content = content.replace('socks5  127.0.0.1 1080', 'socks5  127.0.0.1 10808')
-        
+
         with open(proxychains_config, 'w') as f:
             f.write(content)
-        
+
         log("ProxyChains4 configuration completed", "SUCCESS")
-    
+
     # Configure shell environment variables
     shell_config = """
 # V2Ray Proxy Configuration
@@ -669,12 +734,12 @@ proxy_status() {
     fi
 }
 """
-    
+
     # Write configuration file
     proxy_sh = "/etc/profile.d/v2ray_proxy.sh"
     with open(proxy_sh, 'w') as f:
         f.write(shell_config)
-    
+
     log("System proxy environment variables configured", "SUCCESS")
     log("New terminals will automatically load proxy settings", "INFO")
     log("Use proxy_on/proxy_off/proxy_status to control proxy", "INFO")
@@ -687,14 +752,14 @@ def save_subscription(url, nodes):
         "update_time": int(time.time()),
         "selected_index": 0
     }
-    
+
     # Backup existing configuration
     if os.path.exists(SUBSCRIPTION_FILE):
         shutil.copy(SUBSCRIPTION_FILE, f"{SUBSCRIPTION_FILE}.backup")
-    
+
     with open(SUBSCRIPTION_FILE, 'w', encoding='utf-8') as f:
         json.dump(subscription_data, f, indent=2, ensure_ascii=False)
-    
+
     log("Subscription information saved", "SUCCESS")
 
 def load_subscription():
@@ -713,14 +778,14 @@ def apply_node_config(node):
     # Backup current configuration
     if os.path.exists(CONFIG_FILE):
         shutil.copy(CONFIG_FILE, f"{CONFIG_FILE}.backup")
-    
+
     # Generate new configuration
     config = generate_v2ray_config(node)
-    
+
     # Save configuration
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
-    
+
     # Verify configuration
     result = run_command("/usr/local/bin/v2ray test -config " + CONFIG_FILE, check=False)
     if result and "Configuration OK" in result:
@@ -729,12 +794,12 @@ def apply_node_config(node):
         log("Configuration validation failed, restoring backup", "ERROR")
         shutil.copy(f"{CONFIG_FILE}.backup", CONFIG_FILE)
         return False
-    
+
     # Restart service
     run_command("systemctl daemon-reload")
     run_command("systemctl enable v2ray")
     run_command("systemctl restart v2ray")
-    
+
     # Check service status
     time.sleep(2)
     status = run_command("systemctl is-active v2ray", check=False)
@@ -748,12 +813,12 @@ def apply_node_config(node):
 def test_proxy():
     """Test proxy connection"""
     log("Testing proxy connection...", "INFO")
-    
+
     test_urls = [
         ("SOCKS5", "curl -s -x socks5h://127.0.0.1:10808 https://ipinfo.io/ip -m 10"),
         ("HTTP", "curl -s -x http://127.0.0.1:10809 https://ipinfo.io/ip -m 10")
     ]
-    
+
     for name, cmd in test_urls:
         ip = run_command(cmd, check=False)
         if ip and len(ip) < 20:
@@ -782,24 +847,24 @@ def get_current_node_info():
     try:
         with open(CONFIG_FILE, 'r') as f:
             config = json.load(f)
-        
+
         # Check configuration structure
-        if ("outbounds" not in config or 
-            not config["outbounds"] or 
+        if ("outbounds" not in config or
+            not config["outbounds"] or
             "settings" not in config["outbounds"][0] or
             "vnext" not in config["outbounds"][0]["settings"] or
             not config["outbounds"][0]["settings"]["vnext"]):
             return "Invalid configuration format"
-            
+
         current_server = config["outbounds"][0]["settings"]["vnext"][0]["address"]
         current_port = config["outbounds"][0]["settings"]["vnext"][0]["port"]
-        
+
         # Find matching node
         all_nodes = get_available_nodes()
         for node in all_nodes:
             if node["server"] == current_server and node["port"] == current_port:
                 return f"{node['name']} ({node.get('region', 'Unknown')})"
-        
+
         return "Unknown Node"
     except:
         return "Configuration file not found or invalid format"
@@ -807,12 +872,12 @@ def get_current_node_info():
 def get_available_nodes():
     """Get all available nodes (subscription + built-in)"""
     nodes = []
-    
+
     # Load subscription nodes
     subscription = load_subscription()
     if subscription and subscription.get("nodes"):
         nodes.extend(subscription["nodes"])
-    
+
     # Add built-in nodes (if no subscription or need backup)
     if not nodes:
         # Convert built-in node format
@@ -822,29 +887,29 @@ def get_available_nodes():
                 "protocol": "vmess",
                 "uuid": DEFAULT_UUID
             })
-    
+
     return nodes
 
 def quick_start():
     """Quick start (new user guide)"""
     print(f"\n{Colors.HEADER}Welcome to V2Ray Quick Setup Wizard{Colors.END}")
     print("="*60)
-    
+
     # Check system
     if not check_system():
         return False
-    
+
     # Install dependencies and V2Ray
     install_dependencies()
     install_v2ray()
-    
+
     # Ask for subscription method
     print("\nPlease select configuration method:")
     print("1. Use subscription URL (recommended)")
     print("2. Use built-in nodes")
-    
+
     choice = input("\nPlease select [1-2]: ").strip()
-    
+
     nodes = []
     if choice == "1":
         sub_url = input("\nPlease enter V2Ray subscription URL: ").strip()
@@ -854,11 +919,11 @@ def quick_start():
                 save_subscription(sub_url, nodes)
     else:
         nodes = [{**node, "protocol": "vmess", "uuid": DEFAULT_UUID} for node in BUILTIN_NODES]
-    
+
     if not nodes:
         log("No available nodes found", "ERROR")
         return False
-    
+
     # Test and select best node
     best_node = test_all_nodes(nodes[:20])  # Test only first 20 nodes
     if best_node:
@@ -870,7 +935,7 @@ def quick_start():
             print(f"Local SOCKS5 proxy: 127.0.0.1:10808")
             print(f"Local HTTP proxy: 127.0.0.1:10809")
             return True
-    
+
     return False
 
 def switch_node():
@@ -879,12 +944,12 @@ def switch_node():
     if not nodes:
         log("No available nodes", "ERROR")
         return
-    
+
     # Display node list
     print("\n" + "="*60)
     print("Available Node List")
     print("="*60)
-    
+
     # Group by region
     regions = {}
     for i, node in enumerate(nodes):
@@ -892,25 +957,25 @@ def switch_node():
         if region not in regions:
             regions[region] = []
         regions[region].append((i, node))
-    
+
     for region, region_nodes in regions.items():
         print(f"\n[{region}]")
         for i, node in region_nodes:
             print(f"  {i+1:3d}. {node['name']:<30} {node['server']}:{node['port']}")
-    
+
     print("\n" + "="*60)
-    
+
     # Select node
     try:
         choice = input(f"\nPlease select node [1-{len(nodes)}, 0 to return]: ").strip()
         if choice == "0":
             return
-        
+
         idx = int(choice) - 1
         if 0 <= idx < len(nodes):
             selected_node = nodes[idx]
             print(f"\nSelected: {selected_node['name']}")
-            
+
             # Test node
             print("\nTesting node latency...")
             test_result = test_node_latency(selected_node)
@@ -921,7 +986,7 @@ def switch_node():
                 confirm = input("\nNode may be unavailable, continue switching? (y/n): ")
                 if confirm.lower() != 'y':
                     return
-            
+
             # Apply configuration
             if apply_node_config(selected_node):
                 print("\nVerifying connection...")
@@ -933,7 +998,7 @@ def switch_node():
 def update_subscription():
     """Update subscription"""
     subscription = load_subscription()
-    
+
     if not subscription:
         url = input("\nPlease enter subscription URL: ").strip()
         if not url:
@@ -943,24 +1008,24 @@ def update_subscription():
         url = subscription.get("url", "")
         update_time = subscription.get("update_time", 0)
         last_update = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(update_time))
-        
+
         print(f"\nCurrent subscription URL: {url}")
         print(f"Last update time: {last_update}")
-        
+
         choice = input("\nUpdate subscription? (y/n): ").strip().lower()
         if choice != 'y':
             return
-    
+
     nodes = parse_subscription(url)
     if nodes:
         save_subscription(url, nodes)
-        
+
         # Display statistics
         region_count = {}
         for node in nodes:
             region = node.get("region", "Unknown")
             region_count[region] = region_count.get(region, 0) + 1
-        
+
         print("\nSubscription updated successfully!")
         for region, count in region_count.items():
             print(f"  {region}: {count} nodes")
@@ -968,36 +1033,36 @@ def update_subscription():
 def restore_backup():
     """Restore configuration backup"""
     backups = []
-    
+
     # Check available backups
     if os.path.exists(f"{CONFIG_FILE}.backup"):
         backups.append(("V2Ray configuration", CONFIG_FILE, f"{CONFIG_FILE}.backup"))
-    
+
     if os.path.exists(f"{SUBSCRIPTION_FILE}.backup"):
         backups.append(("Subscription configuration", SUBSCRIPTION_FILE, f"{SUBSCRIPTION_FILE}.backup"))
-    
+
     if os.path.exists("/etc/proxychains4.conf.backup"):
         backups.append(("ProxyChains4 configuration", "/etc/proxychains4.conf", "/etc/proxychains4.conf.backup"))
-    
+
     if not backups:
         log("No backup files found", "WARNING")
         return
-    
+
     print("\nAvailable backups:")
     for i, (name, _, _) in enumerate(backups, 1):
         print(f"{i}. {name}")
-    
+
     try:
         choice = input(f"\nPlease select backup to restore [1-{len(backups)}, 0 to cancel]: ").strip()
         if choice == "0":
             return
-        
+
         idx = int(choice) - 1
         if 0 <= idx < len(backups):
             name, target, backup = backups[idx]
             shutil.copy(backup, target)
             log(f"{name} restored", "SUCCESS")
-            
+
             if "V2Ray" in name:
                 restart = input("\nRestart V2Ray service? (y/n): ")
                 if restart.lower() == 'y':
@@ -1068,7 +1133,7 @@ def show_help():
 [Command Line Arguments]
   - proxy_status : Display current proxy status (beautified)
   - --help, -h : Display help information
-  
+
 [To-be-implemented Features]
   - --install : Install V2Ray only
   - --switch <n> : Quick switch to node n
@@ -1083,23 +1148,23 @@ def show_status():
     """Display current status"""
     print(f"\n{Colors.HEADER}V2Ray Service Status{Colors.END}")
     print("="*60)
-    
+
     # Service status
     status = run_command("systemctl is-active v2ray", check=False)
     if status == "active":
         print(f"Service Status: {Colors.GREEN}Running{Colors.END}")
     else:
         print(f"Service Status: {Colors.RED}Stopped{Colors.END}")
-    
+
     # Current node
     print(f"Current Node: {Colors.BOLD}{Colors.CYAN}{get_current_node_info()}{Colors.END}")
-    
+
     # IP information
     if status == "active":
         print("Getting IP information...")
         ip_info = get_current_ip()
         print(f"Current IP: {ip_info}")
-    
+
     # Subscription info
     subscription = load_subscription()
     if subscription:
@@ -1110,7 +1175,7 @@ def show_status():
         print(f"Last Update: {last_update}")
     else:
         print("\nSubscription Nodes: Not configured (using built-in nodes)")
-    
+
     print("="*60)
 
 def get_proxy_ip_info():
@@ -1146,21 +1211,21 @@ def get_current_node_detail():
     try:
         if not os.path.exists(CONFIG_FILE):
             return None, None, None
-        
+
         with open(CONFIG_FILE, 'r') as f:
             config = json.load(f)
-        
+
         # Get protocol and server information
         outbound = config.get('outbounds', [{}])[0]
         protocol = outbound.get('protocol', 'unknown')
-        
+
         if protocol in ['vmess', 'vless']:
             vnext = outbound.get('settings', {}).get('vnext', [{}])[0]
             server = vnext.get('address', 'unknown')
             port = vnext.get('port', 'unknown')
         else:
             return None, None, protocol
-        
+
         # Find node name
         node_name = None
         all_nodes = get_available_nodes()
@@ -1168,7 +1233,7 @@ def get_current_node_detail():
             if node["server"] == server and node["port"] == port:
                 node_name = node['name']
                 break
-        
+
         return node_name, f"{server}:{port}", protocol
     except:
         return None, None, None
@@ -1176,13 +1241,13 @@ def get_current_node_detail():
 def collect_proxy_status_data():
     """Collect proxy status data"""
     data = {}
-    
+
     # Calculate running time
     from datetime import datetime
     start_time = datetime(2019, 2, 4, 23, 14, 18)
     current_time = datetime.now()
     time_diff = current_time - start_time
-    
+
     total_seconds = int(time_diff.total_seconds())
     years = total_seconds // (365 * 24 * 3600)
     remaining = total_seconds % (365 * 24 * 3600)
@@ -1194,7 +1259,7 @@ def collect_proxy_status_data():
     remaining = remaining % 3600
     minutes = remaining // 60
     seconds = remaining % 60
-    
+
     time_parts = []
     if years > 0:
         time_parts.append(f"{years} year{'s' if years != 1 else ''}")
@@ -1208,15 +1273,15 @@ def collect_proxy_status_data():
         time_parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
     if seconds > 0:
         time_parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
-    
+
     data['time_str'] = " ".join(time_parts)
-    
+
     # Get V2Ray service status
     data['v2ray_status'] = run_command("systemctl is-active v2ray", check=False)
-    
+
     # Get node information
     data['node_name'], data['server_port'], data['protocol'] = get_current_node_detail()
-    
+
     # Test current node latency
     data['latency_result'] = None
     if data['server_port']:
@@ -1231,47 +1296,47 @@ def collect_proxy_status_data():
             data['latency_result'] = test_node_latency(current_node, timeout=3, test_count=2)
         except:
             pass
-    
+
     # Check proxy environment variables
     data['http_proxy'] = os.environ.get('http_proxy', '')
     data['https_proxy'] = os.environ.get('https_proxy', '')
     data['all_proxy'] = os.environ.get('all_proxy', '')
-    
+
     # Get IP information
     data['proxy_info'] = None
     data['direct_info'] = None
-    
+
     if data['v2ray_status'] == "active":
         data['proxy_info'] = get_proxy_ip_info()
         data['direct_info'] = get_direct_ip_info()
     else:
         data['direct_info'] = get_direct_ip_info()
-    
+
     return data
 
 def render_proxy_status(data, refresh_mode=False):
     """Render proxy status display"""
     output = []
-    
+
     output.append("")
     output.append(f"{Colors.CYAN}╔══════════════════════════════════════════════════════════════╗{Colors.END}")
     output.append(f"{Colors.CYAN}║                    🌐 V2Ray Proxy Status                     ║{Colors.END}")
     output.append(f"{Colors.CYAN}╚══════════════════════════════════════════════════════════════╝{Colors.END}")
-    
+
     # Running time
     output.append(f"{Colors.BLUE}▸ Running Time: {Colors.GREEN}{data['time_str']}{Colors.END}")
-    
+
     # V2Ray service status
     if data['v2ray_status'] == "active":
         output.append(f"{Colors.GREEN}▸ V2Ray Service: ✓ Running{Colors.END}")
     else:
         output.append(f"{Colors.RED}▸ V2Ray Service: ✗ Stopped{Colors.END}")
-    
+
     # Node information
     if data['node_name']:
         output.append(f"{Colors.BLUE}▸ Current Node: {Colors.BOLD}{Colors.CYAN}🔸 {data['node_name']} 🔸{Colors.END}")
         output.append(f"{Colors.BLUE}▸ Server: {Colors.END}{data['server_port']} {Colors.PURPLE}[{data['protocol']}]{Colors.END}")
-        
+
         # Node latency
         if data['latency_result']:
             if data['latency_result']['status'] == 'online':
@@ -1290,7 +1355,7 @@ def render_proxy_status(data, refresh_mode=False):
         output.append(f"{Colors.BLUE}▸ Server: {Colors.END}{data['server_port']} {Colors.PURPLE}[{data['protocol']}]{Colors.END}")
     else:
         output.append(f"{Colors.RED}▸ Node Status: Not configured{Colors.END}")
-    
+
     # Proxy environment variables
     output.append("")
     if data['http_proxy'] or data['https_proxy'] or data['all_proxy']:
@@ -1303,11 +1368,11 @@ def render_proxy_status(data, refresh_mode=False):
             output.append(f"  {Colors.BLUE}SOCKS:{Colors.END} {data['all_proxy']}")
     else:
         output.append(f"{Colors.YELLOW}▸ Terminal Proxy: ⚠ Not configured{Colors.END}")
-    
+
     # IP information
     output.append("")
     output.append(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
-    
+
     proxy_failed = False
     if data['v2ray_status'] == "active":
         if data['proxy_info']:
@@ -1315,13 +1380,13 @@ def render_proxy_status(data, refresh_mode=False):
             proxy_country = data['proxy_info'].get('country', '')
             proxy_city = data['proxy_info'].get('city', '')
             proxy_org = data['proxy_info'].get('org', '')
-            
+
             output.append(f"{Colors.GREEN}▸ Proxy IP: {Colors.YELLOW}{proxy_ip}{Colors.END} {Colors.BLUE}({proxy_country} {proxy_city}){Colors.END}")
             output.append(f"{Colors.GREEN}▸ ISP: {Colors.END}{proxy_org}")
         else:
             output.append(f"{Colors.RED}▸ Proxy Connection: ✗ Unable to connect to proxy server{Colors.END}")
             proxy_failed = True
-        
+
         if data['direct_info']:
             direct_ip = data['direct_info'].get('ip', 'Unknown')
             direct_country = data['direct_info'].get('country', '')
@@ -1332,9 +1397,9 @@ def render_proxy_status(data, refresh_mode=False):
             direct_country = data['direct_info'].get('country', '')
             direct_city = data['direct_info'].get('city', '')
             output.append(f"{Colors.BLUE}▸ Current IP: {Colors.END}{direct_ip} {Colors.PURPLE}({direct_country} {direct_city}){Colors.END}")
-    
+
     output.append(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
-    
+
     # Quick tips
     if proxy_failed:
         output.append("")
@@ -1345,16 +1410,16 @@ def render_proxy_status(data, refresh_mode=False):
         output.append("")
     else:
         output.append("")
-    
+
     # Refresh mode prompt
     if refresh_mode:
         output.append(f"{Colors.PURPLE}Press Ctrl+C to exit{Colors.END}")
-    
+
     return "\n".join(output)
 
 def show_proxy_status(refresh_mode=False):
     """Display proxy status (beautified version)
-    
+
     Args:
         refresh_mode: Enable auto-refresh mode, refresh every 3 seconds
     """
@@ -1419,33 +1484,33 @@ def main():
             print("  --help, -h           Display this help information")
             print("\nEnter interactive menu when no arguments provided")
             return 0
-    
+
     # Enter interactive menu
     print(f"{Colors.HEADER}V2Ray Management Tool{Colors.END}")
     print(f"Version: 2.1.0 | Platform: Ubuntu/Debian\n")
-    
+
     while True:
         show_main_menu()
         choice = input("Please select operation: ").strip()
-        
+
         try:
             if choice == "0":
                 print("\nThank you for using!")
                 break
-            
+
             elif choice == "1":
                 # Quick start
                 quick_start()
-            
+
             elif choice == "21":
                 # Switch node
                 switch_node()
-            
+
             elif choice == "22":
                 # Test current node
                 nodes = get_available_nodes()
                 current_node = None
-                
+
                 # Find current node
                 try:
                     with open(CONFIG_FILE, 'r') as f:
@@ -1453,14 +1518,14 @@ def main():
                     if config.get("outbounds"):
                         current_server = config["outbounds"][0]["settings"]["vnext"][0]["address"]
                         current_port = config["outbounds"][0]["settings"]["vnext"][0]["port"]
-                        
+
                         for node in nodes:
                             if node["server"] == current_server and node["port"] == current_port:
                                 current_node = node
                                 break
                 except:
                     pass
-                
+
                 if current_node:
                     print(f"\nCurrent node: {current_node['name']}")
                     result = test_node_latency(current_node, test_count=5)
@@ -1472,48 +1537,48 @@ def main():
                         print(f"✗ Node is offline")
                 else:
                     log("Unable to identify current node", "ERROR")
-            
+
             elif choice == "23":
                 # Test all nodes
                 nodes = get_available_nodes()
                 test_all_nodes(nodes)
-            
+
             elif choice == "31":
                 # Update subscription
                 update_subscription()
-            
+
             elif choice == "41":
                 # Configure system proxy
                 configure_system_proxy()
-            
+
             elif choice == "42":
                 # Sync ProxyChains4
                 run_command("sudo sed -i 's/socks5  127.0.0.1 1080/socks5  127.0.0.1 10808/g' /etc/proxychains4.conf")
                 log("ProxyChains4 configuration synchronized", "SUCCESS")
-            
+
             elif choice == "51":
                 # View service status
                 show_status()
-            
+
             elif choice == "52":
                 # Test proxy
                 test_proxy()
-            
+
             elif choice == "53":
                 # Restore backup
                 restore_backup()
-            
+
             elif choice == "54":
                 # View logs
                 if os.path.exists(LOG_FILE):
                     run_command(f"tail -n 50 {LOG_FILE}", capture_output=False)
                 else:
                     log("Log file does not exist", "WARNING")
-            
+
             elif choice == "55":
                 # Show proxy status (beautified)
                 show_proxy_status()
-            
+
             elif choice == "56":
                 # Real-time monitor proxy status
                 print("\nEntering real-time monitoring mode, refreshing every 3 seconds...")
@@ -1529,17 +1594,17 @@ def main():
                         time.sleep(3)
                 except KeyboardInterrupt:
                     print("\n\nExited monitoring mode")
-            
+
             elif choice == "6":
                 # Help
                 show_help()
-            
+
             else:
                 log("Invalid choice", "WARNING")
-            
+
             if choice != "0":
                 input("\nPress Enter to continue...")
-                
+
         except KeyboardInterrupt:
             print("\n\nOperation cancelled")
             break
