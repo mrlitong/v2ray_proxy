@@ -29,6 +29,7 @@ import socket
 import requests
 import tempfile
 import shutil
+import configparser
 from urllib.parse import urlparse, unquote, parse_qs
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -1005,6 +1006,31 @@ def get_available_nodes():
 
     return nodes
 
+def get_default_subscription_url():
+    """Get default subscription URL from subscription_url.ini"""
+    ini_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "subscription_url.ini")
+    
+    if not os.path.exists(ini_path):
+        return None
+    
+    try:
+        config = configparser.ConfigParser()
+        config.read(ini_path, encoding='utf-8')
+        
+        # Check for v2ray URL in gsou_cloud section
+        if config.has_section('gsou_cloud') and config.has_option('gsou_cloud', 'v2ray'):
+            return config.get('gsou_cloud', 'v2ray')
+            
+        # If not found in expected section, try to find any v2ray URL
+        for section in config.sections():
+            if config.has_option(section, 'v2ray'):
+                return config.get(section, 'v2ray')
+                
+    except Exception as e:
+        log(f"Failed to read default subscription URL: {str(e)}", "WARNING")
+    
+    return None
+
 def quick_start():
     """Quick start (new user guide)"""
     print(f"\n{Colors.HEADER}Welcome to V2Ray Quick Setup Wizard{Colors.END}")
@@ -1027,7 +1053,21 @@ def quick_start():
 
     nodes = []
     if choice == "1":
-        sub_url = input("\nPlease enter V2Ray subscription URL: ").strip()
+        # Get default subscription URL
+        default_url = get_default_subscription_url()
+        
+        if default_url:
+            print(f"\nFound default subscription URL:")
+            print(f"{Colors.CYAN}{default_url}{Colors.END}")
+            use_default = input("\nUse this default subscription URL? (y/n) [y]: ").strip().lower()
+            
+            if use_default in ['', 'y', 'yes']:
+                sub_url = default_url
+            else:
+                sub_url = input("\nPlease enter your V2Ray subscription URL: ").strip()
+        else:
+            sub_url = input("\nPlease enter V2Ray subscription URL: ").strip()
+            
         if sub_url:
             nodes = parse_subscription(sub_url)
             if nodes:
