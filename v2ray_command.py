@@ -1152,24 +1152,32 @@ def switch_node():
 
 def update_subscription():
     """Update subscription"""
-    subscription = load_subscription()
-
-    if not subscription:
+    # Get subscription URL from subscription_url.ini
+    url = get_default_subscription_url()
+    
+    if not url:
+        log("No subscription URL found in subscription_url.ini", "ERROR")
+        # Fallback to manual input
         url = input("\nPlease enter subscription URL: ").strip()
         if not url:
             log("Subscription URL cannot be empty", "ERROR")
             return
     else:
-        url = subscription.get("url", "")
-        update_time = subscription.get("update_time", 0)
-        last_update = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(update_time))
-
-        print(f"\nCurrent subscription URL: {url}")
-        print(f"Last update time: {last_update}")
-
-        choice = input("\nUpdate subscription? (y/n): ").strip().lower()
-        if choice != 'y':
-            return
+        print(f"\nUsing subscription URL from subscription_url.ini:")
+        print(f"{Colors.CYAN}{url}{Colors.END}")
+        
+        # Show previous subscription info if exists
+        subscription = load_subscription()
+        if subscription:
+            old_url = subscription.get("url", "")
+            update_time = subscription.get("update_time", 0)
+            last_update = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(update_time))
+            
+            if old_url != url:
+                print(f"\nPrevious subscription URL: {old_url}")
+            print(f"Last update time: {last_update}")
+        
+        print("\nUpdating subscription...")
 
     nodes = parse_subscription(url)
     if nodes:
@@ -1225,6 +1233,82 @@ def restore_backup():
     except ValueError:
         log("Invalid input", "ERROR")
 
+def reset_system_proxy():
+    """Reset system proxy to default (remove all proxy settings)"""
+    log("Resetting system proxy to default...", "INFO")
+    
+    # Stop V2Ray service
+    print("\nStopping V2Ray service...")
+    run_command("systemctl stop v2ray", check=False)
+    run_command("systemctl disable v2ray", check=False)
+    log("V2Ray service stopped and disabled", "SUCCESS")
+    
+    # Get actual user's home directory
+    actual_user = os.environ.get('SUDO_USER', os.environ.get('USER'))
+    if actual_user:
+        import pwd
+        user_info = pwd.getpwnam(actual_user)
+        actual_home = user_info.pw_dir
+    else:
+        actual_home = os.path.expanduser('~')
+    
+    # Remove proxy settings from ~/.zshrc
+    zshrc_path = os.path.join(actual_home, '.zshrc')
+    if os.path.exists(zshrc_path):
+        try:
+            with open(zshrc_path, 'r') as f:
+                lines = f.readlines()
+            
+            # Filter out V2Ray proxy related lines
+            new_lines = []
+            skip_next = False
+            for line in lines:
+                if skip_next:
+                    skip_next = False
+                    continue
+                if '# V2Ray Proxy Configuration' in line:
+                    skip_next = True
+                    continue
+                if 'source /etc/profile.d/v2ray_proxy.sh' in line:
+                    continue
+                new_lines.append(line)
+            
+            # Write back cleaned content
+            with open(zshrc_path, 'w') as f:
+                f.writelines(new_lines)
+            
+            log("Removed proxy settings from ~/.zshrc", "SUCCESS")
+        except Exception as e:
+            log(f"Failed to clean ~/.zshrc: {str(e)}", "WARNING")
+    
+    # Remove proxy configuration file
+    proxy_sh = "/etc/profile.d/v2ray_proxy.sh"
+    if os.path.exists(proxy_sh):
+        try:
+            os.remove(proxy_sh)
+            log("Removed /etc/profile.d/v2ray_proxy.sh", "SUCCESS")
+        except Exception as e:
+            log(f"Failed to remove proxy configuration file: {str(e)}", "WARNING")
+    
+    # Reset ProxyChains4 to default if backup exists
+    if os.path.exists("/etc/proxychains4.conf.backup"):
+        try:
+            shutil.copy("/etc/proxychains4.conf.backup", "/etc/proxychains4.conf")
+            log("Restored ProxyChains4 to default configuration", "SUCCESS")
+        except Exception as e:
+            log(f"Failed to restore ProxyChains4: {str(e)}", "WARNING")
+    
+    print("\n" + "="*60)
+    print(f"{Colors.GREEN}✓ System proxy has been reset to default{Colors.END}")
+    print("="*60)
+    print("\nChanges made:")
+    print("  1. V2Ray service stopped and disabled")
+    print("  2. Removed proxy settings from ~/.zshrc")
+    print("  3. Removed /etc/profile.d/v2ray_proxy.sh")
+    print("  4. Restored ProxyChains4 to default (if backup exists)")
+    print("\nNote: You need to restart your terminal or run 'source ~/.zshrc'")
+    print("      for the changes to take effect in current session.")
+
 def show_help():
     """Display help information"""
     help_text = f"""
@@ -1263,6 +1347,7 @@ def show_help():
    - Configure system proxy environment variables
    - Sync ProxyChains4 configuration
    - Provide proxy_on/proxy_off shortcuts
+   - Reset system proxy to default (remove all proxy settings)
 
 5. {Colors.BOLD}Advanced Features{Colors.END}
    - View service status and logs
@@ -1612,6 +1697,7 @@ def show_main_menu():
     print("4. System Configuration")
     print("   41. Configure System Proxy")
     print("   42. Sync ProxyChains4")
+    print("   43. Reset System Proxy to Default")
     print("5. Advanced Features")
     print("   51. View Service Status")
     print("   52. Test Proxy Connection")
@@ -1723,6 +1809,16 @@ def main():
                 # Sync ProxyChains4
                 run_command("sudo sed -i 's/socks5  127.0.0.1 1080/socks5  127.0.0.1 10808/g' /etc/proxychains4.conf")
                 log("ProxyChains4 configuration synchronized", "SUCCESS")
+
+            elif choice == "43":
+                # Reset system proxy to default
+                confirm = input("\nAre you sure you want to reset system proxy to default? This will:\n"
+                              "- Stop and disable V2Ray service\n"
+                              "- Remove all proxy settings from ~/.zshrc\n"
+                              "- Remove proxy environment configurations\n"
+                              "\nContinue? (y/n): ").strip().lower()
+                if confirm == 'y':
+                    reset_system_proxy()
 
             elif choice == "51":
                 # View service status
