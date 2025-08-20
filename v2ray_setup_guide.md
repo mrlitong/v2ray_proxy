@@ -146,6 +146,7 @@ Main Function Modules:
      - Concurrent testing for efficiency
      - Display latency and success rate
      - Automatically recommend optimal node
+     - Auto-filter subscription metadata (traffic/expiry info)
 
 #### 3. **Subscription Management**
    - **Update Subscription (31)**: Get latest nodes from subscription URL
@@ -541,10 +542,12 @@ tail -f /var/log/v2ray_command.log
 - V2Ray Remote: See node list
 
 ---
-Document Update Time: 2025-07-17
+Document Update Time: 2025-08-20
 Author: Claude Assistant
 
 ### Update Log
+- 2025-08-20: Fixed issue with subscription metadata appearing in node tests
+- 2025-08-20: Added automatic filtering for non-VPN entries (traffic/expiry info)
 - 2025-07-17: Comprehensive update to v2ray_command.py v2.1.0 management tool
 - 2025-07-17: Added quick start feature and one-click installation deployment instructions
 - 2025-07-17: Added subscription management feature description (supports VMess/VLESS)
