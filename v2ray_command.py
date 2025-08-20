@@ -579,6 +579,25 @@ def test_node_latency(node, timeout=5, test_count=3):
 def test_all_nodes(nodes):
     """Batch test all nodes"""
     print("\nTesting all nodes, please wait...")
+    
+    # Filter out non-node entries (like subscription metadata)
+    def is_valid_node(node):
+        """Check if this is a valid VPN node"""
+        node_name = node.get('name', '').lower()
+        # Filter out subscription metadata entries
+        if any(keyword in node_name for keyword in ['剩余流量', '过期时间', 'traffic', 'expire', 'remaining']):
+            return False
+        # Check if node has required fields
+        if not node.get('server') or not node.get('port'):
+            return False
+        return True
+    
+    # Filter nodes
+    valid_nodes = [node for node in nodes if is_valid_node(node)]
+    
+    if not valid_nodes:
+        print(f"{Colors.RED}No valid nodes to test!{Colors.END}")
+        return None
 
     # Calculate string display width in terminal (Chinese characters take 2 widths)
     def get_display_width(s):
@@ -623,7 +642,7 @@ def test_all_nodes(nodes):
 
     # Use thread pool for concurrent testing
     with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_node = {executor.submit(test_node_latency, node): node for node in nodes}
+        future_to_node = {executor.submit(test_node_latency, node): node for node in valid_nodes}
 
         for future in as_completed(future_to_node):
             node = future_to_node[future]
@@ -697,7 +716,7 @@ def test_all_nodes(nodes):
     if online_nodes:
         avg_latency = sum(n["latency"] for n in online_nodes) / len(online_nodes)
         best_node = min(online_nodes, key=lambda x: x["latency"])
-        print(f"\nOnline nodes: {len(online_nodes)}/{len(nodes)}")
+        print(f"\nOnline nodes: {len(online_nodes)}/{len(valid_nodes)}")
         print(f"Average latency: {avg_latency:.1f}ms")
         print(f"\n{Colors.GREEN}Recommended node: {best_node['name']} (Latency: {best_node['latency']:.1f}ms){Colors.END}")
         return best_node
@@ -1099,6 +1118,25 @@ def switch_node():
     if not nodes:
         log("No available nodes", "ERROR")
         return
+    
+    # Filter out non-node entries (same logic as test_all_nodes)
+    def is_valid_node(node):
+        """Check if this is a valid VPN node"""
+        node_name = node.get('name', '').lower()
+        # Filter out subscription metadata entries
+        if any(keyword in node_name for keyword in ['剩余流量', '过期时间', 'traffic', 'expire', 'remaining']):
+            return False
+        # Check if node has required fields
+        if not node.get('server') or not node.get('port'):
+            return False
+        return True
+    
+    # Filter nodes
+    valid_nodes = [node for node in nodes if is_valid_node(node)]
+    
+    if not valid_nodes:
+        log("No valid nodes available", "ERROR")
+        return
 
     # Display node list
     print("\n" + "="*60)
@@ -1107,7 +1145,7 @@ def switch_node():
 
     # Group by region
     regions = {}
-    for i, node in enumerate(nodes):
+    for i, node in enumerate(valid_nodes):
         region = node.get("region", "Other")
         if region not in regions:
             regions[region] = []
@@ -1122,13 +1160,13 @@ def switch_node():
 
     # Select node
     try:
-        choice = input(f"\nPlease select node [1-{len(nodes)}, 0 to return]: ").strip()
+        choice = input(f"\nPlease select node [1-{len(valid_nodes)}, 0 to return]: ").strip()
         if choice == "0":
             return
 
         idx = int(choice) - 1
-        if 0 <= idx < len(nodes):
-            selected_node = nodes[idx]
+        if 0 <= idx < len(valid_nodes):
+            selected_node = valid_nodes[idx]
             print(f"\nSelected: {selected_node['name']}")
 
             # Test node
