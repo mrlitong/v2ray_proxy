@@ -2,10 +2,25 @@
 
 ## Zero. Quick Start
 
+### 🎯 Cross-Platform Support (v3.0+)
+This tool now supports both **macOS** and **Linux** with full feature parity!
+
 ### For New Users
-If you are installing V2Ray for the first time, simply execute the following commands:
+
+#### macOS Installation
 ```bash
-# Download the management tool (if you don't have it yet)
+# Download the management tool
+curl -O https://raw.githubusercontent.com/yourusername/v2ray_proxy/main/v2ray_command.py
+
+# Run quick installation (some operations need sudo)
+python3 v2ray_command.py
+
+# Select 1 - Quick Start
+```
+
+#### Linux Installation
+```bash
+# Download the management tool
 wget https://raw.githubusercontent.com/yourusername/v2ray_proxy/main/v2ray_command.py
 
 # Run quick installation (requires root privileges)
@@ -24,24 +39,50 @@ The management tool will automatically:
 ## 1. System Environment Overview
 
 ### 1.1 Basic Information
-- **Operating System**: Ubuntu/Debian Linux
+- **Operating Systems**: 
+  - macOS 10.12+ (Sierra and later)
+  - Ubuntu/Debian Linux
+  - Other Linux distributions with systemd
 - **V2Ray Version**: V2Ray 5.x (V2Fly Community Edition)
-- **Management Tool**: v2ray_command.py v2.1.0
+- **Management Tool**: v2ray_command.py v3.0.0 (Cross-platform)
 - **Supported Protocols**: VMess/VLESS
-- **Permission Requirements**: Requires root privileges to run management tool
+- **Permission Requirements**: 
+  - Linux: Requires root privileges (sudo)
+  - macOS: Some operations require sudo
 
 ### 1.2 Core Components
+
+#### Platform-Specific Paths
+
+**macOS:**
+| Component | Path/Port | Purpose |
+|-----------|-----------|---------|
+| V2Ray Main Program | `/usr/local/bin/v2ray` | Proxy service core |
+| V2Ray Config | `/usr/local/etc/v2ray/config.json` | Node configuration file |
+| Subscription Config | `/usr/local/etc/v2ray/subscription.json` | Subscription node storage |
+| Management Script | `v2ray_command.py` | Cross-platform management tool |
+| proxychains-ng | `/usr/local/bin/proxychains4` | Force proxy tool |
+| proxychains Config | `/usr/local/etc/proxychains-ng.conf` | Proxy chain configuration |
+| Service File | `/Library/LaunchDaemons/com.v2ray.core.plist` | launchd service |
+| System Log | `/usr/local/var/log/v2ray_command.log` | Operation log record |
+
+**Linux:**
 | Component | Path/Port | Purpose |
 |-----------|-----------|---------|
 | V2Ray Main Program | `/usr/local/bin/v2ray` | Proxy service core |
 | V2Ray Config | `/etc/v2ray/config.json` | Node configuration file |
 | Subscription Config | `/etc/v2ray/subscription.json` | Subscription node storage |
-| Management Script | `v2ray_command.py` | Comprehensive management tool |
+| Management Script | `v2ray_command.py` | Cross-platform management tool |
 | ProxyChains4 | `/usr/bin/proxychains4` | Force proxy tool |
 | ProxyChains4 Config | `/etc/proxychains4.conf` | Proxy chain configuration |
-| SOCKS5 Proxy | `127.0.0.1:10808` | Local SOCKS5 port |
-| HTTP Proxy | `127.0.0.1:10809` | Local HTTP port |
+| Service File | `/etc/systemd/system/v2ray.service` | systemd service |
 | System Log | `/var/log/v2ray_command.log` | Operation log record |
+
+**Common Ports (All Platforms):**
+| Port | Protocol | Purpose |
+|------|----------|---------|  
+| `127.0.0.1:10808` | SOCKS5 | Local SOCKS5 proxy |
+| `127.0.0.1:10809` | HTTP | Local HTTP proxy |
 
 ### 1.3 System Proxy Configuration
 Environment variables configured in `~/.zshrc`:
@@ -56,6 +97,22 @@ export no_proxy="localhost,127.0.0.1,localaddress,.localdomain.com"
 ## 2. V2Ray Service Management
 
 ### 2.1 Service Control Commands
+
+#### macOS (launchd)
+```bash
+# Start service
+sudo launchctl load /Library/LaunchDaemons/com.v2ray.core.plist
+
+# Stop service
+sudo launchctl unload /Library/LaunchDaemons/com.v2ray.core.plist
+
+# Check service status
+sudo launchctl list | grep v2ray
+
+# Service auto-starts by default with RunAtLoad=true
+```
+
+#### Linux (systemd)
 ```bash
 # Start service
 sudo systemctl start v2ray
@@ -77,6 +134,20 @@ sudo systemctl disable v2ray
 ```
 
 ### 2.2 Log Viewing
+
+#### macOS
+```bash
+# View V2Ray logs
+tail -f /usr/local/var/log/v2ray_command.log
+
+# View service output
+tail -f /usr/local/var/log/v2ray_command.log.out
+
+# View service errors
+tail -f /usr/local/var/log/v2ray_command.log.error
+```
+
+#### Linux
 ```bash
 # View logs in real-time
 sudo journalctl -u v2ray -f
@@ -86,9 +157,25 @@ sudo journalctl -u v2ray -n 100
 
 # View logs for specific time period
 sudo journalctl -u v2ray --since "2025-07-16 10:00"
+
+# View management tool logs
+tail -f /var/log/v2ray_command.log
 ```
 
 ### 2.3 Configuration Validation
+
+#### macOS
+```bash
+# Validate configuration file syntax
+/usr/local/bin/v2ray test -config /usr/local/etc/v2ray/config.json
+
+# Check port listening status
+sudo lsof -i:10808
+sudo lsof -i:10809
+netstat -an | grep -E "10808|10809"
+```
+
+#### Linux
 ```bash
 # Validate configuration file syntax
 /usr/local/bin/v2ray test -config /etc/v2ray/config.json
@@ -102,11 +189,29 @@ sudo ss -tlnp | grep -E "10808|10809"
 
 ### 3.1 Quick Installation and Configuration
 For new users, the quick start feature is recommended:
+
+**macOS:**
+```bash
+# Run management tool (some operations require sudo)
+python3 v2ray_command.py
+
+# Select 1 - Quick Start
+# The tool will automatically:
+# - Install Homebrew if not present
+# - Install dependencies via brew
+# - Configure launchd service
+```
+
+**Linux:**
 ```bash
 # Run management tool (requires sudo privileges)
 sudo python3 v2ray_command.py
 
 # Select 1 - Quick Start
+# The tool will automatically:
+# - Update package lists
+# - Install dependencies via apt
+# - Configure systemd service
 ```
 
 ### 3.2 Subscription Feature Description
@@ -213,10 +318,10 @@ Then restart the service:
 sudo systemctl restart v2ray
 ```
 
-## 4. ProxyChains4 Usage Guide
+## 4. ProxyChains Usage Guide
 
 ### 4.1 Basic Usage
-ProxyChains4 is used to force programs that don't support proxy to access the network through proxy.
+**macOS uses proxychains-ng**, **Linux uses ProxyChains4**. Both work similarly to force programs that don't support proxy to access the network through proxy.
 
 ```bash
 # Basic format
@@ -249,9 +354,15 @@ proxychains4 -q kubectl get pods
 ccd  # Equivalent to proxychains4 -q claude --dangerously-skip-permissions
 ```
 
-### 4.3 ProxyChains4 Configuration Description
-Current configuration (`/etc/proxychains4.conf`):
+### 4.3 ProxyChains Configuration Description
+
+**macOS** (`/usr/local/etc/proxychains-ng.conf`):
 - **Proxy Mode**: strict_chain (strict chain, all proxies must be available)
+- **DNS Proxy**: Enabled (prevent DNS leak)
+- **Proxy Server**: SOCKS5 127.0.0.1:10808
+
+**Linux** (`/etc/proxychains4.conf`):
+- **Proxy Mode**: dynamic_chain (flexible chain mode)
 - **DNS Proxy**: Enabled (prevent DNS leak)
 - **Silent Mode**: Enabled (quiet_mode on)
 - **Proxy Server**: SOCKS5 127.0.0.1:10808
@@ -546,6 +657,14 @@ Document Update Time: 2025-08-20
 Author: Claude Assistant
 
 ### Update Log
+- 2025-08-31: **v3.0.0 Major Update - Full Cross-Platform Support**
+  - Added complete macOS support (10.12+)
+  - Refactored with platform abstraction layer
+  - Support for Homebrew package manager on macOS
+  - launchd service management for macOS
+  - proxychains-ng support for macOS
+  - Maintained full backward compatibility with Linux
+  - Unified user experience across platforms
 - 2025-08-20: Fixed issue with subscription metadata appearing in node tests
 - 2025-08-20: Added automatic filtering for non-VPN entries (traffic/expiry info)
 - 2025-07-17: Comprehensive update to v2ray_command.py v2.1.0 management tool

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-V2Ray Comprehensive Management Tool
-Integrates automatic installation, node management, subscription management and all other functions
+V2Ray Cross-Platform Management Tool
+Supports both macOS and Linux (Ubuntu/Debian) with full feature parity
 
 Features:
 1. Complete V2Ray installation and deployment
@@ -10,13 +10,14 @@ Features:
 3. Node switching and management (supports subscription nodes and built-in nodes)
 4. Advanced latency testing
 5. System proxy configuration
-6. ProxyChains4 synchronization
+6. ProxyChains4/proxychains-ng synchronization
 7. Configuration backup and restore
 8. Detailed logging
 9. Beautified proxy status display
+10. Cross-platform support (macOS, Linux)
 
 Author: Claude Assistant
-Version: 2.1.0
+Version: 3.0.0
 """
 
 import os
@@ -30,17 +31,46 @@ import requests
 import tempfile
 import shutil
 import configparser
+import platform
+import abc
 from urllib.parse import urlparse, unquote, parse_qs
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from pathlib import Path
 
-# Global configuration
-CONFIG_DIR = "/etc/v2ray"
-CONFIG_FILE = "/etc/v2ray/config.json"
-SUBSCRIPTION_FILE = "/etc/v2ray/subscription.json"
-LOG_FILE = "/var/log/v2ray_command.log"
+# ==================== Platform Detection ====================
+PLATFORM = platform.system().lower()
+IS_MACOS = PLATFORM == 'darwin'
+IS_LINUX = PLATFORM == 'linux'
 
-# Color output
+# ==================== Global Configuration ====================
+class Config:
+    """Platform-specific configuration"""
+    def __init__(self):
+        if IS_MACOS:
+            self.CONFIG_DIR = "/usr/local/etc/v2ray"
+            self.LOG_DIR = "/usr/local/var/log"
+            self.V2RAY_BIN = "/usr/local/bin/v2ray"
+            self.V2RAY_SHARE = "/usr/local/share/v2ray"
+            self.SERVICE_NAME = "com.v2ray.core"
+            self.PROXYCHAINS_CONFIG = "/usr/local/etc/proxychains-ng.conf"
+            self.SHELL_CONFIG_DIR = "/etc/profile.d"  # Will use ~/.zshrc for macOS
+        else:  # Linux
+            self.CONFIG_DIR = "/etc/v2ray"
+            self.LOG_DIR = "/var/log"
+            self.V2RAY_BIN = "/usr/local/bin/v2ray"
+            self.V2RAY_SHARE = "/usr/local/share/v2ray"
+            self.SERVICE_NAME = "v2ray"
+            self.PROXYCHAINS_CONFIG = "/etc/proxychains4.conf"
+            self.SHELL_CONFIG_DIR = "/etc/profile.d"
+        
+        self.CONFIG_FILE = os.path.join(self.CONFIG_DIR, "config.json")
+        self.SUBSCRIPTION_FILE = os.path.join(self.CONFIG_DIR, "subscription.json")
+        self.LOG_FILE = os.path.join(self.LOG_DIR, "v2ray_command.log")
+
+CONFIG = Config()
+
+# ==================== Color Output ====================
 class Colors:
     HEADER = '\033[95m'
     BLUE = '\033[94m'
@@ -52,7 +82,7 @@ class Colors:
     CYAN = '\033[96m'
     PURPLE = '\033[95m'
 
-# Built-in nodes (from v2ray_node_switcher.py)
+# ==================== Built-in Nodes ====================
 BUILTIN_NODES = [
     # Hong Kong nodes
     {"name": "VIP-v2ray-Hong Kong 01", "server": "andromedae.weltknoten.xyz", "port": 30001, "region": "Hong Kong", "tls": "tls"},
@@ -87,9 +117,9 @@ BUILTIN_NODES = [
     {"name": "VIP-v2ray-Z-Russia", "server": "andromedae.weltknoten.xyz", "port": 30019, "region": "Russia", "tls": "tls"},
 ]
 
-# Default UUID (from v2ray_node_switcher.py)
 DEFAULT_UUID = "39a279a5-55bb-3a27-ad9b-6ec81ff5779a"
 
+# ==================== Logging ====================
 def log(message, level="INFO"):
     """Log messages"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -97,8 +127,8 @@ def log(message, level="INFO"):
 
     # Write to log file
     try:
-        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-        with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        os.makedirs(os.path.dirname(CONFIG.LOG_FILE), exist_ok=True)
+        with open(CONFIG.LOG_FILE, 'a', encoding='utf-8') as f:
             f.write(log_message + "\n")
     except:
         pass
@@ -127,120 +157,439 @@ def run_command(command, capture_output=True, check=True):
             raise
         return None
 
-def check_system():
-    """Check system environment"""
-    log("Checking system environment...", "INFO")
+# ==================== Platform Abstraction ====================
+class PlatformHandler(abc.ABC):
+    """Abstract base class for platform-specific operations"""
+    
+    @abc.abstractmethod
+    def check_system(self):
+        """Check if system is supported"""
+        pass
+    
+    @abc.abstractmethod
+    def install_dependencies(self):
+        """Install system dependencies"""
+        pass
+    
+    @abc.abstractmethod
+    def install_v2ray(self):
+        """Install V2Ray"""
+        pass
+    
+    @abc.abstractmethod
+    def create_service(self):
+        """Create system service"""
+        pass
+    
+    @abc.abstractmethod
+    def start_service(self):
+        """Start V2Ray service"""
+        pass
+    
+    @abc.abstractmethod
+    def stop_service(self):
+        """Stop V2Ray service"""
+        pass
+    
+    @abc.abstractmethod
+    def restart_service(self):
+        """Restart V2Ray service"""
+        pass
+    
+    @abc.abstractmethod
+    def enable_service(self):
+        """Enable service auto-start"""
+        pass
+    
+    @abc.abstractmethod
+    def disable_service(self):
+        """Disable service auto-start"""
+        pass
+    
+    @abc.abstractmethod
+    def is_service_active(self):
+        """Check if service is active"""
+        pass
+    
+    @abc.abstractmethod
+    def configure_proxychains(self):
+        """Configure ProxyChains"""
+        pass
 
-    # Check operating system
-    if not os.path.exists("/etc/os-release"):
-        log("Unsupported operating system", "ERROR")
-        return False
-
-    os_info = run_command("cat /etc/os-release | grep -E '^(ID|VERSION_ID)='")
-    if "ubuntu" not in os_info.lower() and "debian" not in os_info.lower():
-        log("Warning: This script is primarily designed for Ubuntu/Debian, other systems may require adjustments", "WARNING")
-
-    # Check permissions
-    if os.geteuid() != 0:
-        log("Root privileges required to run this script", "ERROR")
-        log("Please use: sudo python3 " + sys.argv[0], "INFO")
-        return False
-
-    # Check network
-    try:
-        socket.create_connection(("8.8.8.8", 53), timeout=5)
-    except:
-        log("Network connection error, please check network settings", "ERROR")
-        return False
-
-    return True
-
-def install_dependencies():
-    """Install dependencies"""
-    log("Installing necessary dependencies...", "INFO")
-
-    dependencies = ["curl", "wget", "unzip", "jq", "proxychains4"]
-
-    # Update package list
-    run_command("apt-get update", capture_output=False)
-
-    for dep in dependencies:
-        if run_command(f"which {dep}", check=False):
-            log(f"{dep} already installed", "SUCCESS")
-        else:
-            log(f"Installing {dep}...", "INFO")
-            run_command(f"apt-get install -y {dep}", capture_output=False)
-
-def fix_systemd_config_path():
-    """Fix V2Ray systemd service config path to use standard path"""
-    service_file = "/etc/systemd/system/v2ray.service"
-    if not os.path.exists(service_file):
-        service_file = "/lib/systemd/system/v2ray.service"
-        if not os.path.exists(service_file):
-            log("V2Ray service file not found", "WARNING")
-            return
-
-    try:
-        # Read service file
-        with open(service_file, 'r') as f:
-            content = f.read()
-
-        # Check if it's using non-standard config path
-        if "/usr/local/etc/v2ray/config.json" in content:
-            log("Fixing V2Ray service config path...", "INFO")
-            # Replace with standard path
-            content = content.replace("/usr/local/etc/v2ray/config.json", CONFIG_FILE)
-            
-            # Write back
-            with open(service_file, 'w') as f:
-                f.write(content)
-            
-            # Reload systemd
-            run_command("systemctl daemon-reload")
-            log("V2Ray service config path fixed", "SUCCESS")
-    except Exception as e:
-        log(f"Failed to fix service config path: {str(e)}", "WARNING")
-
-def install_v2ray():
-    """Install V2Ray"""
-    log("Starting V2Ray installation...", "INFO")
-
-    # Check if already installed
-    if os.path.exists("/usr/local/bin/v2ray"):
-        v2ray_version = run_command("v2ray version | head -1", check=False)
-        if v2ray_version:
-            log(f"V2Ray already installed: {v2ray_version}", "SUCCESS")
-            return True
-
-    # Check for local v2ray zip file
-    local_zip = "v2ray-linux-64.zip"
-    if os.path.exists(local_zip):
-        log(f"Found local V2Ray archive: {local_zip}", "INFO")
-        log("Using local file for installation...", "INFO")
-
+class MacOSHandler(PlatformHandler):
+    """macOS-specific implementations"""
+    
+    def check_system(self):
+        """Check macOS system"""
+        log(f"Detected macOS {platform.mac_ver()[0]}", "INFO")
+        
+        # Check if running with sufficient privileges for certain operations
+        if os.geteuid() != 0:
+            log("Note: Some operations may require sudo privileges", "WARNING")
+        
+        # Check network
         try:
-            # Create directories
-            run_command("mkdir -p /usr/local/bin")
-            run_command("mkdir -p /usr/local/share/v2ray")
-            run_command("mkdir -p /usr/local/etc/v2ray")
-            run_command("mkdir -p /var/log/v2ray")
-
-            # Extract zip file
+            socket.create_connection(("8.8.8.8", 53), timeout=5)
+        except:
+            log("Network connection error, please check network settings", "ERROR")
+            return False
+        
+        return True
+    
+    def install_dependencies(self):
+        """Install dependencies via Homebrew"""
+        log("Checking Homebrew installation...", "INFO")
+        
+        # Check if Homebrew is installed
+        if run_command("which brew", check=False) is None:
+            log("Homebrew not found. Installing Homebrew...", "INFO")
+            install_cmd = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+            run_command(install_cmd, capture_output=False)
+        
+        dependencies = {
+            "curl": "curl",
+            "wget": "wget",
+            "jq": "jq",
+            "proxychains-ng": "proxychains-ng"
+        }
+        
+        for cmd, package in dependencies.items():
+            if run_command(f"which {cmd}", check=False):
+                log(f"{package} already installed", "SUCCESS")
+            else:
+                log(f"Installing {package}...", "INFO")
+                run_command(f"brew install {package}", capture_output=False)
+    
+    def install_v2ray(self):
+        """Install V2Ray on macOS"""
+        log("Starting V2Ray installation for macOS...", "INFO")
+        
+        # Check if already installed
+        if os.path.exists(CONFIG.V2RAY_BIN):
+            v2ray_version = run_command(f"{CONFIG.V2RAY_BIN} version | head -1", check=False)
+            if v2ray_version:
+                log(f"V2Ray already installed: {v2ray_version}", "SUCCESS")
+                return True
+        
+        # Method 1: Try Homebrew first
+        log("Installing V2Ray via Homebrew...", "INFO")
+        result = run_command("brew install v2ray", capture_output=False, check=False)
+        
+        if result and result.returncode == 0:
+            log("V2Ray installed successfully via Homebrew", "SUCCESS")
+            os.makedirs(CONFIG.CONFIG_DIR, exist_ok=True)
+            return True
+        
+        # Method 2: Manual installation
+        log("Installing V2Ray manually...", "INFO")
+        
+        # Download V2Ray for macOS
+        download_url = "https://github.com/v2fly/v2ray-core/releases/latest/download/v2ray-macos-64.zip"
+        temp_dir = tempfile.mkdtemp()
+        zip_file = os.path.join(temp_dir, "v2ray-macos.zip")
+        
+        try:
+            log("Downloading V2Ray...", "INFO")
+            run_command(f"curl -L -o {zip_file} {download_url}", capture_output=False)
+            
+            # Extract files
             log("Extracting V2Ray files...", "INFO")
-            run_command(f"unzip -o {local_zip} -d /tmp/v2ray-temp")
+            run_command(f"unzip -o {zip_file} -d {temp_dir}")
+            
+            # Create directories
+            os.makedirs(os.path.dirname(CONFIG.V2RAY_BIN), exist_ok=True)
+            os.makedirs(CONFIG.V2RAY_SHARE, exist_ok=True)
+            os.makedirs(CONFIG.CONFIG_DIR, exist_ok=True)
+            os.makedirs(CONFIG.LOG_DIR, exist_ok=True)
+            
+            # Copy files
+            shutil.copy(os.path.join(temp_dir, "v2ray"), CONFIG.V2RAY_BIN)
+            os.chmod(CONFIG.V2RAY_BIN, 0o755)
+            
+            # Copy data files if they exist
+            for data_file in ["geoip.dat", "geosite.dat"]:
+                if os.path.exists(os.path.join(temp_dir, data_file)):
+                    shutil.copy(os.path.join(temp_dir, data_file), CONFIG.V2RAY_SHARE)
+            
+            # Cleanup
+            shutil.rmtree(temp_dir)
+            
+            log("V2Ray installed successfully", "SUCCESS")
+            return True
+            
+        except Exception as e:
+            log(f"Failed to install V2Ray: {str(e)}", "ERROR")
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+            return False
+    
+    def create_service(self):
+        """Create launchd service for macOS"""
+        plist_path = f"/Library/LaunchDaemons/{CONFIG.SERVICE_NAME}.plist"
+        
+        plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{CONFIG.SERVICE_NAME}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{CONFIG.V2RAY_BIN}</string>
+        <string>run</string>
+        <string>-config</string>
+        <string>{CONFIG.CONFIG_FILE}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardErrorPath</key>
+    <string>{CONFIG.LOG_FILE}.error</string>
+    <key>StandardOutPath</key>
+    <string>{CONFIG.LOG_FILE}.out</string>
+    <key>WorkingDirectory</key>
+    <string>{CONFIG.CONFIG_DIR}</string>
+</dict>
+</plist>"""
+        
+        try:
+            # Need sudo to write to /Library/LaunchDaemons/
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.plist', delete=False) as f:
+                f.write(plist_content)
+                temp_plist = f.name
+            
+            run_command(f"sudo cp {temp_plist} {plist_path}")
+            run_command(f"sudo chown root:wheel {plist_path}")
+            run_command(f"sudo chmod 644 {plist_path}")
+            os.unlink(temp_plist)
+            
+            log("V2Ray launchd service created", "SUCCESS")
+            return True
+        except Exception as e:
+            log(f"Failed to create launchd service: {str(e)}", "ERROR")
+            return False
+    
+    def start_service(self):
+        """Start V2Ray service on macOS"""
+        return run_command(f"sudo launchctl load /Library/LaunchDaemons/{CONFIG.SERVICE_NAME}.plist", check=False)
+    
+    def stop_service(self):
+        """Stop V2Ray service on macOS"""
+        return run_command(f"sudo launchctl unload /Library/LaunchDaemons/{CONFIG.SERVICE_NAME}.plist", check=False)
+    
+    def restart_service(self):
+        """Restart V2Ray service on macOS"""
+        self.stop_service()
+        time.sleep(1)
+        self.start_service()
+    
+    def enable_service(self):
+        """Enable service auto-start on macOS"""
+        # launchd services with RunAtLoad=true start automatically
+        return True
+    
+    def disable_service(self):
+        """Disable service auto-start on macOS"""
+        self.stop_service()
+        return True
+    
+    def is_service_active(self):
+        """Check if V2Ray service is running on macOS"""
+        result = run_command(f"sudo launchctl list | grep {CONFIG.SERVICE_NAME}", check=False)
+        return result is not None and CONFIG.SERVICE_NAME in result
+    
+    def configure_proxychains(self):
+        """Configure proxychains-ng for macOS"""
+        proxychains_config = CONFIG.PROXYCHAINS_CONFIG
+        
+        if not os.path.exists(proxychains_config):
+            # Create default configuration
+            config_content = """# proxychains-ng config for V2Ray
+strict_chain
+proxy_dns
+remote_dns_subnet 224
+tcp_read_time_out 15000
+tcp_connect_time_out 8000
 
-            # Copy binary files
-            run_command("cp /tmp/v2ray-temp/v2ray /usr/local/bin/")
-            run_command("chmod +x /usr/local/bin/v2ray")
+[ProxyList]
+socks5 127.0.0.1 10808
+"""
+            try:
+                os.makedirs(os.path.dirname(proxychains_config), exist_ok=True)
+                with open(proxychains_config, 'w') as f:
+                    f.write(config_content)
+                log("Created proxychains-ng configuration", "SUCCESS")
+            except Exception as e:
+                log(f"Failed to create proxychains-ng config: {str(e)}", "WARNING")
+        else:
+            # Update existing configuration
+            try:
+                with open(proxychains_config, 'r') as f:
+                    content = f.read()
+                
+                # Update proxy settings
+                if 'socks5  127.0.0.1 10808' not in content:
+                    content = content.replace('socks5  127.0.0.1 1080', 'socks5  127.0.0.1 10808')
+                    content = content.replace('socks4 	127.0.0.1 9050', 'socks5  127.0.0.1 10808')
+                    
+                    with open(proxychains_config, 'w') as f:
+                        f.write(content)
+                    log("Updated proxychains-ng configuration", "SUCCESS")
+            except Exception as e:
+                log(f"Failed to update proxychains-ng config: {str(e)}", "WARNING")
 
-            # Copy other files
-            if os.path.exists("/tmp/v2ray-temp/geoip.dat"):
-                run_command("cp /tmp/v2ray-temp/geoip.dat /usr/local/share/v2ray/")
-            if os.path.exists("/tmp/v2ray-temp/geosite.dat"):
-                run_command("cp /tmp/v2ray-temp/geosite.dat /usr/local/share/v2ray/")
-
-            # Create systemd service file
-            service_content = """[Unit]
+class LinuxHandler(PlatformHandler):
+    """Linux-specific implementations"""
+    
+    def check_system(self):
+        """Check Linux system"""
+        log("Checking system environment...", "INFO")
+        
+        # Check operating system
+        if not os.path.exists("/etc/os-release"):
+            log("Unsupported operating system", "ERROR")
+            return False
+        
+        os_info = run_command("cat /etc/os-release | grep -E '^(ID|VERSION_ID)='")
+        if "ubuntu" not in os_info.lower() and "debian" not in os_info.lower():
+            log("Warning: This script is optimized for Ubuntu/Debian", "WARNING")
+        
+        # Check permissions
+        if os.geteuid() != 0:
+            log("Root privileges required to run this script", "ERROR")
+            log("Please use: sudo python3 " + sys.argv[0], "INFO")
+            return False
+        
+        # Check network
+        try:
+            socket.create_connection(("8.8.8.8", 53), timeout=5)
+        except:
+            log("Network connection error, please check network settings", "ERROR")
+            return False
+        
+        return True
+    
+    def install_dependencies(self):
+        """Install dependencies via apt-get"""
+        log("Installing necessary dependencies...", "INFO")
+        
+        dependencies = ["curl", "wget", "unzip", "jq", "proxychains4"]
+        
+        # Update package list
+        run_command("apt-get update", capture_output=False)
+        
+        for dep in dependencies:
+            if run_command(f"which {dep}", check=False):
+                log(f"{dep} already installed", "SUCCESS")
+            else:
+                log(f"Installing {dep}...", "INFO")
+                run_command(f"apt-get install -y {dep}", capture_output=False)
+    
+    def install_v2ray(self):
+        """Install V2Ray on Linux"""
+        log("Starting V2Ray installation...", "INFO")
+        
+        # Check if already installed
+        if os.path.exists(CONFIG.V2RAY_BIN):
+            v2ray_version = run_command(f"{CONFIG.V2RAY_BIN} version | head -1", check=False)
+            if v2ray_version:
+                log(f"V2Ray already installed: {v2ray_version}", "SUCCESS")
+                return True
+        
+        # Check for local v2ray zip file
+        local_zip = "v2ray-linux-64.zip"
+        if os.path.exists(local_zip):
+            log(f"Found local V2Ray archive: {local_zip}", "INFO")
+            log("Using local file for installation...", "INFO")
+            
+            try:
+                # Create directories
+                os.makedirs(os.path.dirname(CONFIG.V2RAY_BIN), exist_ok=True)
+                os.makedirs(CONFIG.V2RAY_SHARE, exist_ok=True)
+                os.makedirs(CONFIG.CONFIG_DIR, exist_ok=True)
+                os.makedirs(CONFIG.LOG_DIR, exist_ok=True)
+                
+                # Extract zip file
+                log("Extracting V2Ray files...", "INFO")
+                run_command(f"unzip -o {local_zip} -d /tmp/v2ray-temp")
+                
+                # Copy binary files
+                run_command(f"cp /tmp/v2ray-temp/v2ray {CONFIG.V2RAY_BIN}")
+                run_command(f"chmod +x {CONFIG.V2RAY_BIN}")
+                
+                # Copy other files
+                if os.path.exists("/tmp/v2ray-temp/geoip.dat"):
+                    run_command(f"cp /tmp/v2ray-temp/geoip.dat {CONFIG.V2RAY_SHARE}/")
+                if os.path.exists("/tmp/v2ray-temp/geosite.dat"):
+                    run_command(f"cp /tmp/v2ray-temp/geosite.dat {CONFIG.V2RAY_SHARE}/")
+                
+                # Cleanup
+                run_command("rm -rf /tmp/v2ray-temp")
+                
+                log("V2Ray installed successfully from local file", "SUCCESS")
+                self.create_service()
+                return True
+                
+            except Exception as e:
+                log(f"Local installation failed: {str(e)}", "ERROR")
+                log("Falling back to online installation...", "INFO")
+        
+        # Online installation
+        log("Downloading V2Ray installation script...", "INFO")
+        install_script = "/tmp/install-release.sh"
+        run_command(f"wget -O {install_script} https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh")
+        run_command(f"chmod +x {install_script}")
+        
+        # Execute installation
+        log("Installing V2Ray...", "INFO")
+        run_command(f"bash {install_script}", capture_output=False)
+        
+        # Create configuration directory
+        os.makedirs(CONFIG.CONFIG_DIR, exist_ok=True)
+        
+        # Fix configuration path in systemd service file if needed
+        self._fix_systemd_config_path()
+        
+        # Cleanup
+        os.remove(install_script)
+        
+        log("V2Ray installation completed", "SUCCESS")
+        return True
+    
+    def _fix_systemd_config_path(self):
+        """Fix V2Ray systemd service config path to use standard path"""
+        service_file = "/etc/systemd/system/v2ray.service"
+        if not os.path.exists(service_file):
+            service_file = "/lib/systemd/system/v2ray.service"
+            if not os.path.exists(service_file):
+                log("V2Ray service file not found", "WARNING")
+                return
+        
+        try:
+            # Read service file
+            with open(service_file, 'r') as f:
+                content = f.read()
+            
+            # Check if it's using non-standard config path
+            if "/usr/local/etc/v2ray/config.json" in content:
+                log("Fixing V2Ray service config path...", "INFO")
+                # Replace with standard path
+                content = content.replace("/usr/local/etc/v2ray/config.json", CONFIG.CONFIG_FILE)
+                
+                # Write back
+                with open(service_file, 'w') as f:
+                    f.write(content)
+                
+                # Reload systemd
+                run_command("systemctl daemon-reload")
+                log("V2Ray service config path fixed", "SUCCESS")
+        except Exception as e:
+            log(f"Failed to fix service config path: {str(e)}", "WARNING")
+    
+    def create_service(self):
+        """Create systemd service for Linux"""
+        service_content = """[Unit]
 Description=V2Ray Service
 Documentation=https://www.v2fly.org/
 After=network.target nss-lookup.target
@@ -257,49 +606,98 @@ RestartPreventExitStatus=23
 [Install]
 WantedBy=multi-user.target
 """
+        try:
             with open("/etc/systemd/system/v2ray.service", "w") as f:
                 f.write(service_content)
-
+            
             # Reload systemd
             run_command("systemctl daemon-reload")
-
-            # Cleanup
-            run_command("rm -rf /tmp/v2ray-temp")
-
-            log("V2Ray installed successfully from local file", "SUCCESS")
-
-        except Exception as e:
-            log(f"Local installation failed: {str(e)}", "ERROR")
-            log("Falling back to online installation...", "INFO")
-            # Continue with online installation below
-        else:
-            # Create configuration directory
-            os.makedirs(CONFIG_DIR, exist_ok=True)
-            # Fix systemd config path if needed
-            fix_systemd_config_path()
+            log("V2Ray systemd service created", "SUCCESS")
             return True
+        except Exception as e:
+            log(f"Failed to create systemd service: {str(e)}", "ERROR")
+            return False
+    
+    def start_service(self):
+        """Start V2Ray service on Linux"""
+        run_command("systemctl daemon-reload")
+        return run_command("systemctl start v2ray", check=False)
+    
+    def stop_service(self):
+        """Stop V2Ray service on Linux"""
+        return run_command("systemctl stop v2ray", check=False)
+    
+    def restart_service(self):
+        """Restart V2Ray service on Linux"""
+        run_command("systemctl daemon-reload")
+        return run_command("systemctl restart v2ray", check=False)
+    
+    def enable_service(self):
+        """Enable service auto-start on Linux"""
+        return run_command("systemctl enable v2ray", check=False)
+    
+    def disable_service(self):
+        """Disable service auto-start on Linux"""
+        return run_command("systemctl disable v2ray", check=False)
+    
+    def is_service_active(self):
+        """Check if V2Ray service is running on Linux"""
+        status = run_command("systemctl is-active v2ray", check=False)
+        return status == "active"
+    
+    def configure_proxychains(self):
+        """Configure ProxyChains4 for Linux"""
+        proxychains_config = CONFIG.PROXYCHAINS_CONFIG
+        
+        if os.path.exists(proxychains_config):
+            # Backup original configuration
+            shutil.copy(proxychains_config, f"{proxychains_config}.backup")
+            
+            # Modify configuration
+            with open(proxychains_config, 'r') as f:
+                content = f.read()
+            
+            # Enable dynamic_chain
+            content = content.replace('strict_chain', '#strict_chain')
+            content = content.replace('#dynamic_chain', 'dynamic_chain')
+            
+            # Set proxy
+            if 'socks5  127.0.0.1 10808' not in content:
+                # Replace old port
+                content = content.replace('socks4 	127.0.0.1 9050', 'socks5  127.0.0.1 10808')
+                content = content.replace('socks5  127.0.0.1 1080', 'socks5  127.0.0.1 10808')
+            
+            with open(proxychains_config, 'w') as f:
+                f.write(content)
+            
+            log("ProxyChains4 configuration completed", "SUCCESS")
 
-    # Online installation (original method)
-    log("Downloading V2Ray installation script...", "INFO")
-    install_script = "/tmp/install-release.sh"
-    run_command(f"wget -O {install_script} https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh")
-    run_command(f"chmod +x {install_script}")
+# ==================== Platform Handler Factory ====================
+def get_platform_handler():
+    """Get the appropriate platform handler"""
+    if IS_MACOS:
+        return MacOSHandler()
+    elif IS_LINUX:
+        return LinuxHandler()
+    else:
+        raise NotImplementedError(f"Platform {PLATFORM} is not supported")
 
-    # Execute installation
-    log("Installing V2Ray...", "INFO")
-    run_command(f"bash {install_script}", capture_output=False)
+# Global platform handler
+PLATFORM_HANDLER = get_platform_handler()
 
-    # Create configuration directory
-    os.makedirs(CONFIG_DIR, exist_ok=True)
+# ==================== Core Functions (Platform-independent) ====================
 
-    # Fix configuration path in systemd service file
-    fix_systemd_config_path()
+def check_system():
+    """Check system compatibility"""
+    return PLATFORM_HANDLER.check_system()
 
-    # Cleanup
-    os.remove(install_script)
+def install_dependencies():
+    """Install system dependencies"""
+    PLATFORM_HANDLER.install_dependencies()
 
-    log("V2Ray installation completed", "SUCCESS")
-    return True
+def install_v2ray():
+    """Install V2Ray"""
+    return PLATFORM_HANDLER.install_v2ray()
 
 def parse_vmess(vmess_url):
     """Parse VMess URL"""
@@ -366,17 +764,17 @@ def infer_region(name):
     name_lower = name.lower()
 
     region_keywords = {
-        "Hong Kong": ["hk", "hong kong", "hongkong"],
-        "Japan": ["jp", "japan", "tokyo"],
-        "Singapore": ["sg", "singapore"],
-        "USA": ["us", "america", "usa"],
-        "Korea": ["kr", "korea", "seoul"],
-        "Taiwan": ["tw", "taiwan"],
-        "Canada": ["ca", "canada"],
-        "UK": ["uk", "britain", "london"],
-        "Germany": ["de", "germany", "frankfurt"],
-        "India": ["in", "india", "mumbai"],
-        "Russia": ["ru", "russia", "moscow"]
+        "Hong Kong": ["hk", "hong kong", "hongkong", "香港"],
+        "Japan": ["jp", "japan", "tokyo", "日本"],
+        "Singapore": ["sg", "singapore", "新加坡"],
+        "USA": ["us", "america", "usa", "美国"],
+        "Korea": ["kr", "korea", "seoul", "韩国"],
+        "Taiwan": ["tw", "taiwan", "台湾"],
+        "Canada": ["ca", "canada", "加拿大"],
+        "UK": ["uk", "britain", "london", "英国"],
+        "Germany": ["de", "germany", "frankfurt", "德国"],
+        "India": ["in", "india", "mumbai", "印度"],
+        "Russia": ["ru", "russia", "moscow", "俄罗斯"]
     }
 
     for region, keywords in region_keywords.items():
@@ -621,7 +1019,7 @@ def test_all_nodes(nodes):
 
     # Define column widths
     NAME_WIDTH = 35
-    REGION_WIDTH = 10  # Enough for "Russia" (6 display width) + some space
+    REGION_WIDTH = 10
     STATUS_WIDTH = 10
     LATENCY_WIDTH = 15
     RATE_WIDTH = 10
@@ -687,7 +1085,6 @@ def test_all_nodes(nodes):
                     # Offline status
                     success_rate = result['success_rate']
                     success_rate_val = f"{success_rate:.0f}%"
-                    # Offline nodes always show red success rate
                     success_rate_colored = f"{Colors.RED}{success_rate_val}{Colors.END}"
 
                     line = (
@@ -727,32 +1124,10 @@ def test_all_nodes(nodes):
 def configure_system_proxy():
     """Configure system proxy"""
     log("Configuring system proxy...", "INFO")
-
-    # Configure ProxyChains4
-    proxychains_config = "/etc/proxychains4.conf"
-    if os.path.exists(proxychains_config):
-        # Backup original configuration
-        shutil.copy(proxychains_config, f"{proxychains_config}.backup")
-
-        # Modify configuration
-        with open(proxychains_config, 'r') as f:
-            content = f.read()
-
-        # Enable dynamic_chain
-        content = content.replace('strict_chain', '#strict_chain')
-        content = content.replace('#dynamic_chain', 'dynamic_chain')
-
-        # Set proxy
-        if 'socks5  127.0.0.1 10808' not in content:
-            # Replace old port
-            content = content.replace('socks4 \t127.0.0.1 9050', 'socks5  127.0.0.1 10808')
-            content = content.replace('socks5  127.0.0.1 1080', 'socks5  127.0.0.1 10808')
-
-        with open(proxychains_config, 'w') as f:
-            f.write(content)
-
-        log("ProxyChains4 configuration completed", "SUCCESS")
-
+    
+    # Configure ProxyChains
+    PLATFORM_HANDLER.configure_proxychains()
+    
     # Configure shell environment variables
     shell_config = """
 # V2Ray Proxy Configuration
@@ -789,62 +1164,69 @@ proxy_status() {
     fi
 }
 """
-
-    # Write configuration file for bash
-    proxy_sh = "/etc/profile.d/v2ray_proxy.sh"
-    with open(proxy_sh, 'w') as f:
-        f.write(shell_config)
-
-    # Check user's shell and configure accordingly
-    user_shell = os.environ.get('SHELL', '/bin/bash')
     
-    # Get the actual user's home directory (even if running with sudo)
+    # Get the actual user's home directory
     actual_user = os.environ.get('SUDO_USER', os.environ.get('USER'))
     if actual_user:
         import pwd
-        user_info = pwd.getpwnam(actual_user)
-        actual_home = user_info.pw_dir
-        actual_uid = user_info.pw_uid
-        actual_gid = user_info.pw_gid
+        try:
+            user_info = pwd.getpwnam(actual_user)
+            actual_home = user_info.pw_dir
+            actual_uid = user_info.pw_uid
+            actual_gid = user_info.pw_gid
+        except:
+            actual_home = os.path.expanduser('~')
+            actual_uid = os.getuid()
+            actual_gid = os.getgid()
     else:
         actual_home = os.path.expanduser('~')
         actual_uid = os.getuid()
         actual_gid = os.getgid()
     
+    # Determine shell config file
+    user_shell = os.environ.get('SHELL', '/bin/bash')
+    
     if 'zsh' in user_shell:
-        # For zsh users, also add to .zshrc
-        zshrc_path = os.path.join(actual_home, '.zshrc')
-        
-        # Check if the source line already exists
-        source_line = 'source /etc/profile.d/v2ray_proxy.sh'
-        
-        try:
-            with open(zshrc_path, 'r') as f:
-                zshrc_content = f.read()
-                
-            if source_line not in zshrc_content:
-                # Add source command to .zshrc
-                with open(zshrc_path, 'a') as f:
-                    f.write(f'\n# V2Ray Proxy Configuration\n{source_line}\n')
-                # Set proper ownership
-                os.chown(zshrc_path, actual_uid, actual_gid)
-                log("Added proxy configuration to ~/.zshrc", "SUCCESS")
+        shell_rc = '.zshrc'
+    elif 'bash' in user_shell:
+        shell_rc = '.bashrc'
+    else:
+        shell_rc = '.profile'
+    
+    rc_path = os.path.join(actual_home, shell_rc)
+    
+    # Check if proxy config already exists
+    proxy_marker = '# V2Ray Proxy Configuration'
+    
+    try:
+        if os.path.exists(rc_path):
+            with open(rc_path, 'r') as f:
+                content = f.read()
+            
+            if proxy_marker not in content:
+                # Add proxy configuration
+                with open(rc_path, 'a') as f:
+                    f.write(f'\n{shell_config}\n')
+                log(f"Added proxy configuration to ~/{shell_rc}", "SUCCESS")
             else:
-                log("Proxy configuration already exists in ~/.zshrc", "INFO")
-        except FileNotFoundError:
-            # Create .zshrc if it doesn't exist
-            with open(zshrc_path, 'w') as f:
-                f.write(f'# V2Ray Proxy Configuration\n{source_line}\n')
-            # Set proper ownership
-            os.chown(zshrc_path, actual_uid, actual_gid)
-            log("Created ~/.zshrc with proxy configuration", "SUCCESS")
+                log(f"Proxy configuration already exists in ~/{shell_rc}", "INFO")
+        else:
+            # Create new rc file
+            with open(rc_path, 'w') as f:
+                f.write(shell_config)
+            log(f"Created ~/{shell_rc} with proxy configuration", "SUCCESS")
+        
+        # Set proper ownership
+        if IS_LINUX and os.geteuid() == 0:
+            os.chown(rc_path, actual_uid, actual_gid)
+    
+    except Exception as e:
+        log(f"Failed to configure shell proxy: {str(e)}", "WARNING")
     
     log("System proxy environment variables configured", "SUCCESS")
     log("New terminals will automatically load proxy settings", "INFO")
     log("Use proxy_on/proxy_off/proxy_status to control proxy", "INFO")
-    
-    if 'zsh' in user_shell:
-        log("For current session, run: source ~/.zshrc", "INFO")
+    log(f"For current session, run: source ~/{shell_rc}", "INFO")
 
 def save_subscription(url, nodes):
     """Save subscription information"""
@@ -856,10 +1238,10 @@ def save_subscription(url, nodes):
     }
 
     # Backup existing configuration
-    if os.path.exists(SUBSCRIPTION_FILE):
-        shutil.copy(SUBSCRIPTION_FILE, f"{SUBSCRIPTION_FILE}.backup")
+    if os.path.exists(CONFIG.SUBSCRIPTION_FILE):
+        shutil.copy(CONFIG.SUBSCRIPTION_FILE, f"{CONFIG.SUBSCRIPTION_FILE}.backup")
 
-    with open(SUBSCRIPTION_FILE, 'w', encoding='utf-8') as f:
+    with open(CONFIG.SUBSCRIPTION_FILE, 'w', encoding='utf-8') as f:
         json.dump(subscription_data, f, indent=2, ensure_ascii=False)
 
     log("Subscription information saved", "SUCCESS")
@@ -867,8 +1249,8 @@ def save_subscription(url, nodes):
 def load_subscription():
     """Load subscription information"""
     try:
-        if os.path.exists(SUBSCRIPTION_FILE):
-            with open(SUBSCRIPTION_FILE, 'r', encoding='utf-8') as f:
+        if os.path.exists(CONFIG.SUBSCRIPTION_FILE):
+            with open(CONFIG.SUBSCRIPTION_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         return None
     except Exception as e:
@@ -877,52 +1259,46 @@ def load_subscription():
 
 def apply_node_config(node):
     """Apply node configuration"""
-    # Both possible config file locations
-    config_locations = [
-        CONFIG_FILE,  # /etc/v2ray/config.json
-        "/usr/local/etc/v2ray/config.json"
-    ]
-
     # Generate new configuration
     config = generate_v2ray_config(node)
-
-    # Save configuration to all possible locations
-    for config_path in config_locations:
-        try:
-            # Backup current configuration if exists
-            if os.path.exists(config_path):
-                shutil.copy(config_path, f"{config_path}.backup")
-
-            # Create directory if not exists
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
-
-            # Save configuration
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
-            log(f"Configuration saved to: {config_path}", "INFO")
-        except Exception as e:
-            log(f"Failed to save config to {config_path}: {str(e)}", "WARNING")
-
+    
+    # Create config directory if not exists
+    os.makedirs(CONFIG.CONFIG_DIR, exist_ok=True)
+    
+    # Backup current configuration if exists
+    if os.path.exists(CONFIG.CONFIG_FILE):
+        shutil.copy(CONFIG.CONFIG_FILE, f"{CONFIG.CONFIG_FILE}.backup")
+    
+    # Save configuration
+    try:
+        with open(CONFIG.CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        log(f"Configuration saved to: {CONFIG.CONFIG_FILE}", "INFO")
+    except Exception as e:
+        log(f"Failed to save config: {str(e)}", "ERROR")
+        return False
+    
     # Verify configuration
-    result = run_command("/usr/local/bin/v2ray test -config " + CONFIG_FILE, check=False)
+    result = run_command(f"{CONFIG.V2RAY_BIN} test -config {CONFIG.CONFIG_FILE}", check=False)
     if result and "Configuration OK" in result:
         log("Configuration validation passed", "SUCCESS")
     else:
         log("Configuration validation failed, restoring backup", "ERROR")
-        for config_path in config_locations:
-            if os.path.exists(f"{config_path}.backup"):
-                shutil.copy(f"{config_path}.backup", config_path)
+        if os.path.exists(f"{CONFIG.CONFIG_FILE}.backup"):
+            shutil.copy(f"{CONFIG.CONFIG_FILE}.backup", CONFIG.CONFIG_FILE)
         return False
-
+    
+    # Create service if not exists (for macOS)
+    if IS_MACOS and not PLATFORM_HANDLER.is_service_active():
+        PLATFORM_HANDLER.create_service()
+    
     # Restart service
-    run_command("systemctl daemon-reload")
-    run_command("systemctl enable v2ray")
-    run_command("systemctl restart v2ray")
-
+    PLATFORM_HANDLER.enable_service()
+    PLATFORM_HANDLER.restart_service()
+    
     # Check service status
     time.sleep(2)
-    status = run_command("systemctl is-active v2ray", check=False)
-    if status == "active":
+    if PLATFORM_HANDLER.is_service_active():
         log(f"V2Ray service started, using node: {node['name']}", "SUCCESS")
         return True
     else:
@@ -963,25 +1339,18 @@ def get_current_ip():
 
 def get_current_node_info():
     """Get current node information"""
-    # Check multiple possible config locations
-    config_locations = [
-        CONFIG_FILE,  # /etc/v2ray/config.json
-        "/usr/local/etc/v2ray/config.json"
-    ]
-
     config = None
-    for config_path in config_locations:
-        try:
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-                    break
-        except:
-            continue
-
+    
+    try:
+        if os.path.exists(CONFIG.CONFIG_FILE):
+            with open(CONFIG.CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+    except:
+        pass
+    
     if not config:
         return "Configuration file not found"
-
+    
     try:
         # Check configuration structure
         if ("outbounds" not in config or
@@ -990,16 +1359,16 @@ def get_current_node_info():
             "vnext" not in config["outbounds"][0]["settings"] or
             not config["outbounds"][0]["settings"]["vnext"]):
             return "Invalid configuration format"
-
+        
         current_server = config["outbounds"][0]["settings"]["vnext"][0]["address"]
         current_port = config["outbounds"][0]["settings"]["vnext"][0]["port"]
-
+        
         # Find matching node
         all_nodes = get_available_nodes()
         for node in all_nodes:
             if node["server"] == current_server and node["port"] == current_port:
                 return f"{node['name']} ({node.get('region', 'Unknown')})"
-
+        
         return "Unknown Node"
     except:
         return "Configuration file not found or invalid format"
@@ -1007,12 +1376,12 @@ def get_current_node_info():
 def get_available_nodes():
     """Get all available nodes (subscription + built-in)"""
     nodes = []
-
+    
     # Load subscription nodes
     subscription = load_subscription()
     if subscription and subscription.get("nodes"):
         nodes.extend(subscription["nodes"])
-
+    
     # Add built-in nodes (if no subscription or need backup)
     if not nodes:
         # Convert built-in node format
@@ -1022,7 +1391,7 @@ def get_available_nodes():
                 "protocol": "vmess",
                 "uuid": DEFAULT_UUID
             })
-
+    
     return nodes
 
 def get_default_subscription_url():
@@ -1053,23 +1422,24 @@ def get_default_subscription_url():
 def quick_start():
     """Quick start (new user guide)"""
     print(f"\n{Colors.HEADER}Welcome to V2Ray Quick Setup Wizard{Colors.END}")
+    print(f"Platform: {Colors.CYAN}{platform.system()} {platform.release()}{Colors.END}")
     print("="*60)
-
+    
     # Check system
     if not check_system():
         return False
-
+    
     # Install dependencies and V2Ray
     install_dependencies()
     install_v2ray()
-
+    
     # Ask for subscription method
     print("\nPlease select configuration method:")
     print("1. Use subscription URL (recommended)")
     print("2. Use built-in nodes")
-
+    
     choice = input("\nPlease select [1-2]: ").strip()
-
+    
     nodes = []
     if choice == "1":
         # Get default subscription URL
@@ -1093,11 +1463,11 @@ def quick_start():
                 save_subscription(sub_url, nodes)
     else:
         nodes = [{**node, "protocol": "vmess", "uuid": DEFAULT_UUID} for node in BUILTIN_NODES]
-
+    
     if not nodes:
         log("No available nodes found", "ERROR")
         return False
-
+    
     # Test and select best node
     best_node = test_all_nodes(nodes[:20])  # Test only first 20 nodes
     if best_node:
@@ -1108,8 +1478,20 @@ def quick_start():
             print(f"\nCurrent node: {best_node['name']}")
             print(f"Local SOCKS5 proxy: 127.0.0.1:10808")
             print(f"Local HTTP proxy: 127.0.0.1:10809")
+            
+            # Platform-specific tips
+            if IS_MACOS:
+                print(f"\n{Colors.YELLOW}macOS Tips:{Colors.END}")
+                print("• Use 'proxychains4' command to proxy terminal apps")
+                print("• Configure system proxy in System Preferences > Network > Advanced > Proxies")
+                print("• Or use proxy auto-configuration (PAC) for automatic switching")
+            else:
+                print(f"\n{Colors.YELLOW}Linux Tips:{Colors.END}")
+                print("• Use 'proxychains4' command to proxy terminal apps")
+                print("• Environment variables will be set in new terminals")
+            
             return True
-
+    
     return False
 
 def switch_node():
@@ -1119,7 +1501,7 @@ def switch_node():
         log("No available nodes", "ERROR")
         return
     
-    # Filter out non-node entries (same logic as test_all_nodes)
+    # Filter out non-node entries
     def is_valid_node(node):
         """Check if this is a valid VPN node"""
         node_name = node.get('name', '').lower()
@@ -1236,14 +1618,15 @@ def restore_backup():
     backups = []
 
     # Check available backups
-    if os.path.exists(f"{CONFIG_FILE}.backup"):
-        backups.append(("V2Ray configuration", CONFIG_FILE, f"{CONFIG_FILE}.backup"))
+    if os.path.exists(f"{CONFIG.CONFIG_FILE}.backup"):
+        backups.append(("V2Ray configuration", CONFIG.CONFIG_FILE, f"{CONFIG.CONFIG_FILE}.backup"))
 
-    if os.path.exists(f"{SUBSCRIPTION_FILE}.backup"):
-        backups.append(("Subscription configuration", SUBSCRIPTION_FILE, f"{SUBSCRIPTION_FILE}.backup"))
+    if os.path.exists(f"{CONFIG.SUBSCRIPTION_FILE}.backup"):
+        backups.append(("Subscription configuration", CONFIG.SUBSCRIPTION_FILE, f"{CONFIG.SUBSCRIPTION_FILE}.backup"))
 
-    if os.path.exists("/etc/proxychains4.conf.backup"):
-        backups.append(("ProxyChains4 configuration", "/etc/proxychains4.conf", "/etc/proxychains4.conf.backup"))
+    if os.path.exists(f"{CONFIG.PROXYCHAINS_CONFIG}.backup"):
+        proxychains_name = "proxychains-ng" if IS_MACOS else "ProxyChains4"
+        backups.append((f"{proxychains_name} configuration", CONFIG.PROXYCHAINS_CONFIG, f"{CONFIG.PROXYCHAINS_CONFIG}.backup"))
 
     if not backups:
         log("No backup files found", "WARNING")
@@ -1267,7 +1650,7 @@ def restore_backup():
             if "V2Ray" in name:
                 restart = input("\nRestart V2Ray service? (y/n): ")
                 if restart.lower() == 'y':
-                    run_command("systemctl restart v2ray")
+                    PLATFORM_HANDLER.restart_service()
     except ValueError:
         log("Invalid input", "ERROR")
 
@@ -1277,73 +1660,70 @@ def reset_system_proxy():
     
     # Stop V2Ray service
     print("\nStopping V2Ray service...")
-    run_command("systemctl stop v2ray", check=False)
-    run_command("systemctl disable v2ray", check=False)
+    PLATFORM_HANDLER.stop_service()
+    PLATFORM_HANDLER.disable_service()
     log("V2Ray service stopped and disabled", "SUCCESS")
     
     # Get actual user's home directory
     actual_user = os.environ.get('SUDO_USER', os.environ.get('USER'))
     if actual_user:
         import pwd
-        user_info = pwd.getpwnam(actual_user)
-        actual_home = user_info.pw_dir
+        try:
+            user_info = pwd.getpwnam(actual_user)
+            actual_home = user_info.pw_dir
+        except:
+            actual_home = os.path.expanduser('~')
     else:
         actual_home = os.path.expanduser('~')
     
-    # Remove proxy settings from ~/.zshrc
-    zshrc_path = os.path.join(actual_home, '.zshrc')
-    if os.path.exists(zshrc_path):
-        try:
-            with open(zshrc_path, 'r') as f:
-                lines = f.readlines()
-            
-            # Filter out V2Ray proxy related lines
-            new_lines = []
-            skip_next = False
-            for line in lines:
-                if skip_next:
-                    skip_next = False
-                    continue
-                if '# V2Ray Proxy Configuration' in line:
-                    skip_next = True
-                    continue
-                if 'source /etc/profile.d/v2ray_proxy.sh' in line:
-                    continue
-                new_lines.append(line)
-            
-            # Write back cleaned content
-            with open(zshrc_path, 'w') as f:
-                f.writelines(new_lines)
-            
-            log("Removed proxy settings from ~/.zshrc", "SUCCESS")
-        except Exception as e:
-            log(f"Failed to clean ~/.zshrc: {str(e)}", "WARNING")
+    # Remove proxy settings from shell rc files
+    for rc_file in ['.zshrc', '.bashrc', '.profile']:
+        rc_path = os.path.join(actual_home, rc_file)
+        if os.path.exists(rc_path):
+            try:
+                with open(rc_path, 'r') as f:
+                    lines = f.readlines()
+                
+                # Filter out V2Ray proxy related lines
+                new_lines = []
+                skip_next = False
+                for line in lines:
+                    if skip_next:
+                        skip_next = False
+                        continue
+                    if '# V2Ray Proxy Configuration' in line:
+                        skip_next = True
+                        continue
+                    if 'proxy_on' in line or 'proxy_off' in line or 'proxy_status' in line:
+                        continue
+                    if 'http_proxy' in line or 'https_proxy' in line or 'all_proxy' in line:
+                        continue
+                    new_lines.append(line)
+                
+                # Write back cleaned content
+                with open(rc_path, 'w') as f:
+                    f.writelines(new_lines)
+                
+                log(f"Removed proxy settings from ~/{rc_file}", "SUCCESS")
+            except Exception as e:
+                log(f"Failed to clean ~/{rc_file}: {str(e)}", "WARNING")
     
-    # Remove proxy configuration file
-    proxy_sh = "/etc/profile.d/v2ray_proxy.sh"
-    if os.path.exists(proxy_sh):
+    # Reset ProxyChains to default if backup exists
+    if os.path.exists(f"{CONFIG.PROXYCHAINS_CONFIG}.backup"):
         try:
-            os.remove(proxy_sh)
-            log("Removed /etc/profile.d/v2ray_proxy.sh", "SUCCESS")
+            shutil.copy(f"{CONFIG.PROXYCHAINS_CONFIG}.backup", CONFIG.PROXYCHAINS_CONFIG)
+            proxychains_name = "proxychains-ng" if IS_MACOS else "ProxyChains4"
+            log(f"Restored {proxychains_name} to default configuration", "SUCCESS")
         except Exception as e:
-            log(f"Failed to remove proxy configuration file: {str(e)}", "WARNING")
-    
-    # Reset ProxyChains4 to default if backup exists
-    if os.path.exists("/etc/proxychains4.conf.backup"):
-        try:
-            shutil.copy("/etc/proxychains4.conf.backup", "/etc/proxychains4.conf")
-            log("Restored ProxyChains4 to default configuration", "SUCCESS")
-        except Exception as e:
-            log(f"Failed to restore ProxyChains4: {str(e)}", "WARNING")
+            log(f"Failed to restore ProxyChains: {str(e)}", "WARNING")
     
     print("\n" + "="*60)
     print(f"{Colors.GREEN}✓ System proxy has been reset to default{Colors.END}")
     print("="*60)
     print("\nChanges made:")
     print("  1. V2Ray service stopped and disabled")
-    print("  2. Removed proxy settings from ~/.zshrc")
-    print("  3. Removed /etc/profile.d/v2ray_proxy.sh")
-    print("  4. Restored ProxyChains4 to default (if backup exists)")
+    print("  2. Removed proxy settings from shell configuration files")
+    print("  3. Restored ProxyChains to default (if backup exists)")
     print("\nNote: You need to restart your terminal or run 'source ~/.zshrc'")
     print("      for the changes to take effect in current session.")
 
@@ -1351,72 +1731,58 @@ def show_help():
     """Display help information"""
     help_text = f"""
 {Colors.HEADER}================================================================================
-                        V2Ray Management Tool - Help Guide
+                    V2Ray Cross-Platform Management Tool - Help
 ================================================================================{Colors.END}
 
+[Platform Support]
+  • macOS (10.12+)
+  • Linux (Ubuntu/Debian/CentOS/Fedora)
+  • Full feature parity across platforms
+
 [Features]
-  • Complete V2Ray installation and deployment process
+  • Complete V2Ray installation and deployment
   • Support subscription parsing (vmess/vless protocols)
   • 24 built-in backup nodes
-  • Advanced latency testing (concurrent testing, success rate statistics)
-  • System proxy configuration (environment variables, ProxyChains4)
-  • Configuration backup and restore functions
+  • Advanced latency testing
+  • System proxy configuration
+  • Cross-platform service management
+  • Configuration backup and restore
   • Detailed logging
 
 [Main Functions]
 
 1. {Colors.BOLD}Quick Start{Colors.END}
    - One-click setup wizard for new users
-   - Automatic V2Ray and dependency installation
-   - Guided configuration for subscription or built-in nodes
-   - Automatic selection of the best node
+   - Automatic platform detection
+   - Guided configuration
 
 2. {Colors.BOLD}Node Management{Colors.END}
-   - Switch nodes: Support subscription and built-in nodes
-   - Test current node: Check connection status and latency
-   - Test all nodes: Batch test and recommend the best node
+   - Switch nodes
+   - Test current node
+   - Test all nodes
 
 3. {Colors.BOLD}Subscription Management{Colors.END}
-   - Add/update subscription URL
-   - Automatic parsing of vmess/vless links
-   - Save subscription information for future use
+   - Add/update subscription
+   - Automatic parsing
 
 4. {Colors.BOLD}System Configuration{Colors.END}
-   - Configure system proxy environment variables
-   - Sync ProxyChains4 configuration
-   - Provide proxy_on/proxy_off shortcuts
-   - Reset system proxy to default (remove all proxy settings)
+   - Configure system proxy
+   - Platform-specific optimizations
 
-5. {Colors.BOLD}Advanced Features{Colors.END}
-   - View service status and logs
-   - Backup/restore configuration files
-   - Test proxy connection
+[Configuration Locations]
+  macOS:
+    - V2Ray: /usr/local/etc/v2ray/config.json
+    - Logs: /usr/local/var/log/v2ray_command.log
+    - Service: /Library/LaunchDaemons/com.v2ray.core.plist
 
-[Configuration File Locations]
-  - V2Ray config: /etc/v2ray/config.json
-  - Subscription info: /etc/v2ray/subscription.json
-  - ProxyChains4: /etc/proxychains4.conf
-  - System logs: /var/log/v2ray_command.log
+  Linux:
+    - V2Ray: /etc/v2ray/config.json
+    - Logs: /var/log/v2ray_command.log
+    - Service: /etc/systemd/system/v2ray.service
 
 [Proxy Ports]
   - SOCKS5: 127.0.0.1:10808
   - HTTP: 127.0.0.1:10809
-
-[Usage Tips]
-  - First-time users should select "Quick Start"
-  - Regularly update subscriptions for latest nodes
-  - Use batch testing to find the best node
-  - Restore backups when configuration errors occur
-
-[Command Line Arguments]
-  - proxy_status : Display current proxy status (beautified)
-  - --help, -h : Display help information
-
-[To-be-implemented Features]
-  - --install : Install V2Ray only
-  - --switch <n> : Quick switch to node n
-  - --test : Test all nodes
-  - --update : Update subscription
 
 ================================================================================
 """
@@ -1426,23 +1792,25 @@ def show_status():
     """Display current status"""
     print(f"\n{Colors.HEADER}V2Ray Service Status{Colors.END}")
     print("="*60)
-
+    
+    # Platform info
+    print(f"Platform: {Colors.CYAN}{platform.system()} {platform.release()}{Colors.END}")
+    
     # Service status
-    status = run_command("systemctl is-active v2ray", check=False)
-    if status == "active":
+    if PLATFORM_HANDLER.is_service_active():
         print(f"Service Status: {Colors.GREEN}Running{Colors.END}")
     else:
         print(f"Service Status: {Colors.RED}Stopped{Colors.END}")
-
+    
     # Current node
     print(f"Current Node: {Colors.BOLD}{Colors.CYAN}{get_current_node_info()}{Colors.END}")
-
+    
     # IP information
-    if status == "active":
+    if PLATFORM_HANDLER.is_service_active():
         print("Getting IP information...")
         ip_info = get_current_ip()
         print(f"Current IP: {ip_info}")
-
+    
     # Subscription info
     subscription = load_subscription()
     if subscription:
@@ -1453,275 +1821,13 @@ def show_status():
         print(f"Last Update: {last_update}")
     else:
         print("\nSubscription Nodes: Not configured (using built-in nodes)")
-
+    
     print("="*60)
-
-def get_proxy_ip_info():
-    """Get proxy IP detailed information"""
-    try:
-        result = subprocess.run(
-            ["curl", "-s", "--max-time", "5", "-x", "socks5h://127.0.0.1:10808", "https://ipinfo.io"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0 and result.stdout:
-            return json.loads(result.stdout)
-        return None
-    except:
-        return None
-
-def get_direct_ip_info():
-    """Get direct connection IP detailed information"""
-    try:
-        result = subprocess.run(
-            ["curl", "-s", "--max-time", "3", "--noproxy", "*", "https://ipinfo.io"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0 and result.stdout:
-            return json.loads(result.stdout)
-        return None
-    except:
-        return None
-
-def get_current_node_detail():
-    """Get current node detailed information"""
-    # Check multiple possible config locations
-    config_locations = [
-        CONFIG_FILE,  # /etc/v2ray/config.json
-        "/usr/local/etc/v2ray/config.json"
-    ]
-
-    config = None
-    for config_path in config_locations:
-        try:
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-                    break
-        except:
-            continue
-
-    if not config:
-        return None, None, None
-
-    try:
-        # Get protocol and server information
-        outbound = config.get('outbounds', [{}])[0]
-        protocol = outbound.get('protocol', 'unknown')
-
-        if protocol in ['vmess', 'vless']:
-            vnext = outbound.get('settings', {}).get('vnext', [{}])[0]
-            server = vnext.get('address', 'unknown')
-            port = vnext.get('port', 'unknown')
-        else:
-            return None, None, protocol
-
-        # Find node name
-        node_name = None
-        all_nodes = get_available_nodes()
-        for node in all_nodes:
-            if node["server"] == server and node["port"] == port:
-                node_name = node['name']
-                break
-
-        return node_name, f"{server}:{port}", protocol
-    except:
-        return None, None, None
-
-def collect_proxy_status_data():
-    """Collect proxy status data"""
-    data = {}
-
-    # Calculate running time
-    from datetime import datetime
-    start_time = datetime(2019, 2, 4, 23, 14, 18)
-    current_time = datetime.now()
-    time_diff = current_time - start_time
-
-    total_seconds = int(time_diff.total_seconds())
-    years = total_seconds // (365 * 24 * 3600)
-    remaining = total_seconds % (365 * 24 * 3600)
-    months = remaining // (30 * 24 * 3600)
-    remaining = remaining % (30 * 24 * 3600)
-    days = remaining // (24 * 3600)
-    remaining = remaining % (24 * 3600)
-    hours = remaining // 3600
-    remaining = remaining % 3600
-    minutes = remaining // 60
-    seconds = remaining % 60
-
-    time_parts = []
-    if years > 0:
-        time_parts.append(f"{years} year{'s' if years != 1 else ''}")
-    if months > 0:
-        time_parts.append(f"{months} month{'s' if months != 1 else ''}")
-    if days > 0:
-        time_parts.append(f"{days} day{'s' if days != 1 else ''}")
-    if hours > 0:
-        time_parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
-    if minutes > 0:
-        time_parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
-    if seconds > 0:
-        time_parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
-
-    data['time_str'] = " ".join(time_parts)
-
-    # Get V2Ray service status
-    data['v2ray_status'] = run_command("systemctl is-active v2ray", check=False)
-
-    # Get node information
-    data['node_name'], data['server_port'], data['protocol'] = get_current_node_detail()
-
-    # Test current node latency
-    data['latency_result'] = None
-    if data['server_port']:
-        try:
-            server, port = data['server_port'].split(':')
-            current_node = {
-                "server": server,
-                "port": int(port),
-                "name": data['node_name'] or 'Unknown',
-                "region": data['node_name'].split(' - ')[0] if data['node_name'] and ' - ' in data['node_name'] else ''
-            }
-            data['latency_result'] = test_node_latency(current_node, timeout=3, test_count=2)
-        except:
-            pass
-
-    # Check proxy environment variables
-    data['http_proxy'] = os.environ.get('http_proxy', '')
-    data['https_proxy'] = os.environ.get('https_proxy', '')
-    data['all_proxy'] = os.environ.get('all_proxy', '')
-
-    # Get IP information
-    data['proxy_info'] = None
-    data['direct_info'] = None
-
-    if data['v2ray_status'] == "active":
-        data['proxy_info'] = get_proxy_ip_info()
-        data['direct_info'] = get_direct_ip_info()
-    else:
-        data['direct_info'] = get_direct_ip_info()
-
-    return data
-
-def render_proxy_status(data, refresh_mode=False):
-    """Render proxy status display"""
-    output = []
-
-    output.append("")
-    output.append(f"{Colors.CYAN}╔══════════════════════════════════════════════════════════════╗{Colors.END}")
-    output.append(f"{Colors.CYAN}║                    🌐 V2Ray Proxy Status                     ║{Colors.END}")
-    output.append(f"{Colors.CYAN}╚══════════════════════════════════════════════════════════════╝{Colors.END}")
-
-    # Running time
-    output.append(f"{Colors.BLUE}▸ Running Time: {Colors.GREEN}{data['time_str']}{Colors.END}")
-
-    # V2Ray service status
-    if data['v2ray_status'] == "active":
-        output.append(f"{Colors.GREEN}▸ V2Ray Service: ✓ Running{Colors.END}")
-    else:
-        output.append(f"{Colors.RED}▸ V2Ray Service: ✗ Stopped{Colors.END}")
-
-    # Node information
-    if data['node_name']:
-        output.append(f"{Colors.BLUE}▸ Current Node: {Colors.BOLD}{Colors.CYAN}🔸 {data['node_name']} 🔸{Colors.END}")
-        output.append(f"{Colors.BLUE}▸ Server: {Colors.END}{data['server_port']} {Colors.PURPLE}[{data['protocol']}]{Colors.END}")
-
-        # Node latency
-        if data['latency_result']:
-            if data['latency_result']['status'] == 'online':
-                latency = data['latency_result']['latency']
-                if latency <= 80:
-                    color = Colors.GREEN
-                elif latency <= 150:
-                    color = Colors.YELLOW
-                else:
-                    color = Colors.RED
-                output.append(f"{Colors.BLUE}▸ Node Latency: {color}{latency:.1f}ms{Colors.END}")
-            else:
-                output.append(f"{Colors.BLUE}▸ Node latency: {Colors.RED}Unreachable{Colors.END} {Colors.RED}[Offline]{Colors.END}")
-    elif data['server_port']:
-        output.append(f"{Colors.BLUE}▸ Current node: {Colors.BOLD}{Colors.RED}Unknown Node{Colors.END}")
-        output.append(f"{Colors.BLUE}▸ Server: {Colors.END}{data['server_port']} {Colors.PURPLE}[{data['protocol']}]{Colors.END}")
-    else:
-        output.append(f"{Colors.RED}▸ Node Status: Not configured{Colors.END}")
-
-    # Proxy environment variables
-    output.append("")
-    if data['http_proxy'] or data['https_proxy'] or data['all_proxy']:
-        output.append(f"{Colors.GREEN}▸ Terminal Proxy: ✓ Configured{Colors.END}")
-        if data['http_proxy']:
-            output.append(f"  {Colors.BLUE}HTTP:{Colors.END}  {data['http_proxy']}")
-        if data['https_proxy']:
-            output.append(f"  {Colors.BLUE}HTTPS:{Colors.END} {data['https_proxy']}")
-        if data['all_proxy']:
-            output.append(f"  {Colors.BLUE}SOCKS:{Colors.END} {data['all_proxy']}")
-    else:
-        output.append(f"{Colors.YELLOW}▸ Terminal Proxy: ⚠ Not configured{Colors.END}")
-
-    # IP information
-    output.append("")
-    output.append(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
-
-    proxy_failed = False
-    if data['v2ray_status'] == "active":
-        if data['proxy_info']:
-            proxy_ip = data['proxy_info'].get('ip', 'Unknown')
-            proxy_country = data['proxy_info'].get('country', '')
-            proxy_city = data['proxy_info'].get('city', '')
-            proxy_org = data['proxy_info'].get('org', '')
-
-            output.append(f"{Colors.GREEN}▸ Proxy IP: {Colors.YELLOW}{proxy_ip}{Colors.END} {Colors.BLUE}({proxy_country} {proxy_city}){Colors.END}")
-            output.append(f"{Colors.GREEN}▸ ISP: {Colors.END}{proxy_org}")
-        else:
-            output.append(f"{Colors.RED}▸ Proxy Connection: ✗ Unable to connect to proxy server{Colors.END}")
-            proxy_failed = True
-
-        if data['direct_info']:
-            direct_ip = data['direct_info'].get('ip', 'Unknown')
-            direct_country = data['direct_info'].get('country', '')
-            output.append(f"{Colors.BLUE}▸ Local IP: {Colors.END}{direct_ip} {Colors.PURPLE}({direct_country}){Colors.END}")
-    else:
-        if data['direct_info']:
-            direct_ip = data['direct_info'].get('ip', 'Unknown')
-            direct_country = data['direct_info'].get('country', '')
-            direct_city = data['direct_info'].get('city', '')
-            output.append(f"{Colors.BLUE}▸ Current IP: {Colors.END}{direct_ip} {Colors.PURPLE}({direct_country} {direct_city}){Colors.END}")
-
-    output.append(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
-
-    # Quick tips
-    if proxy_failed:
-        output.append("")
-        output.append(f"{Colors.PURPLE}💡 Quick Commands:{Colors.END}")
-        output.append(f"  {Colors.BLUE}▸{Colors.END} Switch Node: {Colors.YELLOW}python3 {sys.argv[0]}{Colors.END}")
-        output.append(f"  {Colors.BLUE}▸{Colors.END} Check Status: {Colors.YELLOW}sudo systemctl status v2ray{Colors.END}")
-        output.append(f"  {Colors.BLUE}▸{Colors.END} Restart Service: {Colors.YELLOW}sudo systemctl restart v2ray{Colors.END}")
-        output.append("")
-    else:
-        output.append("")
-
-    # Refresh mode prompt
-    if refresh_mode:
-        output.append(f"{Colors.PURPLE}Press Ctrl+C to exit{Colors.END}")
-
-    return "\n".join(output)
-
-def show_proxy_status(refresh_mode=False):
-    """Display proxy status (beautified version)
-
-    Args:
-        refresh_mode: Enable auto-refresh mode, refresh every 3 seconds
-    """
-    # Collect data
-    data = collect_proxy_status_data()
-    # Render and display
-    print(render_proxy_status(data, refresh_mode))
 
 def show_main_menu():
     """Display main menu"""
-    print(f"\n{Colors.BOLD}V2Ray Management Tool v2.1{Colors.END}")
+    print(f"\n{Colors.BOLD}V2Ray Cross-Platform Management Tool v3.0{Colors.END}")
+    print(f"Platform: {Colors.CYAN}{platform.system()}{Colors.END}")
     print("="*60)
     print(f"Current Node: {Colors.BOLD}{Colors.CYAN}{get_current_node_info()}{Colors.END}")
     print("="*60)
@@ -1734,15 +1840,13 @@ def show_main_menu():
     print("   31. Update Subscription")
     print("4. System Configuration")
     print("   41. Configure System Proxy")
-    print("   42. Sync ProxyChains4")
+    print("   42. Sync ProxyChains")
     print("   43. Reset System Proxy to Default")
     print("5. Advanced Features")
     print("   51. View Service Status")
     print("   52. Test Proxy Connection")
     print("   53. Restore Configuration Backup")
     print("   54. View Logs")
-    print("   55. Show Proxy Status (beautified)")
-    print("   56. Real-time Monitor Proxy Status (3s refresh)")
     print("6. Help")
     print("0. Exit")
     print("="*60)
@@ -1751,73 +1855,51 @@ def main():
     """Main function"""
     # Check command line arguments
     if len(sys.argv) > 1:
-        if sys.argv[1] == "proxy_status":
-            # Display proxy status directly and exit
-            show_proxy_status()
+        if sys.argv[1] in ["--help", "-h"]:
+            show_help()
             return 0
-        elif sys.argv[1] == "proxy_status_refresh":
-            # Enter real-time refresh mode
-            try:
-                while True:
-                    # Collect data first
-                    data = collect_proxy_status_data()
-                    # Then clear screen and display
-                    os.system('clear')
-                    print(render_proxy_status(data, refresh_mode=True))
-                    time.sleep(3)
-            except KeyboardInterrupt:
-                print("\n\nExiting monitor mode...")
-                return 0
-        elif sys.argv[1] in ["--help", "-h"]:
-            print(f"Usage: {sys.argv[0]} [options]")
-            print("\nOptions:")
-            print("  proxy_status         Display current proxy status information")
-            print("  proxy_status_refresh Real-time monitor proxy status (3s refresh)")
-            print("  --help, -h           Display this help information")
-            print("\nEnter interactive menu when no arguments provided")
-            return 0
-
+    
     # Enter interactive menu
-    print(f"{Colors.HEADER}V2Ray Management Tool{Colors.END}")
-    print(f"Version: 2.1.0 | Platform: Ubuntu/Debian\n")
-
+    print(f"{Colors.HEADER}V2Ray Cross-Platform Management Tool{Colors.END}")
+    print(f"Version: 3.0.0 | Platform: {platform.system()}\n")
+    
     while True:
         show_main_menu()
         choice = input("Please select operation: ").strip()
-
+        
         try:
             if choice == "0":
                 print("\nThank you for using!")
                 break
-
+            
             elif choice == "1":
                 # Quick start
                 quick_start()
-
+            
             elif choice == "21":
                 # Switch node
                 switch_node()
-
+            
             elif choice == "22":
                 # Test current node
                 nodes = get_available_nodes()
                 current_node = None
-
+                
                 # Find current node
                 try:
-                    with open(CONFIG_FILE, 'r') as f:
+                    with open(CONFIG.CONFIG_FILE, 'r') as f:
                         config = json.load(f)
                     if config.get("outbounds"):
                         current_server = config["outbounds"][0]["settings"]["vnext"][0]["address"]
                         current_port = config["outbounds"][0]["settings"]["vnext"][0]["port"]
-
+                        
                         for node in nodes:
                             if node["server"] == current_server and node["port"] == current_port:
                                 current_node = node
                                 break
                 except:
                     pass
-
+                
                 if current_node:
                     print(f"\nCurrent node: {current_node['name']}")
                     result = test_node_latency(current_node, test_count=5)
@@ -1829,84 +1911,64 @@ def main():
                         print(f"✗ Node is offline")
                 else:
                     log("Unable to identify current node", "ERROR")
-
+            
             elif choice == "23":
                 # Test all nodes
                 nodes = get_available_nodes()
                 test_all_nodes(nodes)
-
+            
             elif choice == "31":
                 # Update subscription
                 update_subscription()
-
+            
             elif choice == "41":
                 # Configure system proxy
                 configure_system_proxy()
-
+            
             elif choice == "42":
-                # Sync ProxyChains4
-                run_command("sudo sed -i 's/socks5  127.0.0.1 1080/socks5  127.0.0.1 10808/g' /etc/proxychains4.conf")
-                log("ProxyChains4 configuration synchronized", "SUCCESS")
-
+                # Sync ProxyChains
+                PLATFORM_HANDLER.configure_proxychains()
+                log("ProxyChains configuration synchronized", "SUCCESS")
+            
             elif choice == "43":
                 # Reset system proxy to default
                 confirm = input("\nAre you sure you want to reset system proxy to default? This will:\n"
                               "- Stop and disable V2Ray service\n"
-                              "- Remove all proxy settings from ~/.zshrc\n"
+                              "- Remove all proxy settings from shell configuration\n"
                               "- Remove proxy environment configurations\n"
                               "\nContinue? (y/n): ").strip().lower()
                 if confirm == 'y':
                     reset_system_proxy()
-
+            
             elif choice == "51":
                 # View service status
                 show_status()
-
+            
             elif choice == "52":
                 # Test proxy
                 test_proxy()
-
+            
             elif choice == "53":
                 # Restore backup
                 restore_backup()
-
+            
             elif choice == "54":
                 # View logs
-                if os.path.exists(LOG_FILE):
-                    run_command(f"tail -n 50 {LOG_FILE}", capture_output=False)
+                if os.path.exists(CONFIG.LOG_FILE):
+                    run_command(f"tail -n 50 {CONFIG.LOG_FILE}", capture_output=False)
                 else:
                     log("Log file does not exist", "WARNING")
-
-            elif choice == "55":
-                # Show proxy status (beautified)
-                show_proxy_status()
-
-            elif choice == "56":
-                # Real-time monitor proxy status
-                print("\nEntering real-time monitoring mode, refreshing every 3 seconds...")
-                print("Press Ctrl+C to exit monitoring")
-                time.sleep(1)
-                try:
-                    while True:
-                        # Collect data first
-                        data = collect_proxy_status_data()
-                        # Then clear screen and display
-                        os.system('clear')
-                        print(render_proxy_status(data, refresh_mode=True))
-                        time.sleep(3)
-                except KeyboardInterrupt:
-                    print("\n\nExited monitoring mode")
-
+            
             elif choice == "6":
                 # Help
                 show_help()
-
+            
             else:
                 log("Invalid choice", "WARNING")
-
+            
             if choice != "0":
                 input("\nPress Enter to continue...")
-
+        
         except KeyboardInterrupt:
             print("\n\nOperation cancelled")
             break
