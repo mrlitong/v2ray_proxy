@@ -165,52 +165,42 @@ class PlatformHandler(abc.ABC):
     def check_system(self):
         """Check if system is supported"""
         pass
-    
     @abc.abstractmethod
     def install_dependencies(self):
         """Install system dependencies"""
         pass
-    
     @abc.abstractmethod
     def install_v2ray(self):
         """Install V2Ray"""
         pass
-    
     @abc.abstractmethod
     def create_service(self):
         """Create system service"""
         pass
-    
     @abc.abstractmethod
     def start_service(self):
         """Start V2Ray service"""
         pass
-    
     @abc.abstractmethod
     def stop_service(self):
         """Stop V2Ray service"""
         pass
-    
     @abc.abstractmethod
     def restart_service(self):
         """Restart V2Ray service"""
         pass
-    
     @abc.abstractmethod
     def enable_service(self):
         """Enable service auto-start"""
         pass
-    
     @abc.abstractmethod
     def disable_service(self):
         """Disable service auto-start"""
         pass
-    
     @abc.abstractmethod
     def is_service_active(self):
         """Check if service is active"""
         pass
-    
     @abc.abstractmethod
     def configure_proxychains(self):
         """Configure ProxyChains"""
@@ -221,11 +211,21 @@ class MacOSHandler(PlatformHandler):
     
     def check_system(self):
         """Check macOS system"""
-        log(f"Detected macOS {platform.mac_ver()[0]}", "INFO")
+        mac_version = platform.mac_ver()[0]
+        log(f"Detected macOS {mac_version}", "INFO")
+        
+        # Check macOS version compatibility
+        try:
+            major_version = int(mac_version.split('.')[0])
+            if major_version < 10:
+                log(f"macOS {mac_version} may not be fully supported", "WARNING")
+        except:
+            pass
         
         # Check if running with sufficient privileges for certain operations
         if os.geteuid() != 0:
-            log("Note: Some operations may require sudo privileges", "WARNING")
+            log("Note: Some operations (service management) will require sudo privileges", "INFO")
+            log("Non-service operations can run without sudo", "INFO")
         
         # Check network
         try:
@@ -235,13 +235,14 @@ class MacOSHandler(PlatformHandler):
             return False
         
         return True
-    
+
     def install_dependencies(self):
         """Install dependencies via Homebrew"""
         log("Checking Homebrew installation...", "INFO")
         
         # Check if Homebrew is installed
-        if run_command("which brew", check=False) is None:
+        brew_check = run_command("which brew", check=False)
+        if not brew_check or brew_check == "":
             log("Homebrew not found. Installing Homebrew...", "INFO")
             install_cmd = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
             run_command(install_cmd, capture_output=False)
@@ -250,15 +251,18 @@ class MacOSHandler(PlatformHandler):
             "curl": "curl",
             "wget": "wget",
             "jq": "jq",
-            "proxychains-ng": "proxychains-ng"
+            "proxychains4": "proxychains-ng"  # proxychains4 is the command name
         }
         
         for cmd, package in dependencies.items():
-            if run_command(f"which {cmd}", check=False):
+            check_result = run_command(f"which {cmd}", check=False)
+            if check_result and check_result.strip():
                 log(f"{package} already installed", "SUCCESS")
             else:
                 log(f"Installing {package}...", "INFO")
-                run_command(f"brew install {package}", capture_output=False)
+                install_result = run_command(f"brew install {package}", capture_output=False, check=False)
+                if install_result and install_result.returncode != 0:
+                    log(f"Failed to install {package}, some features may not work", "WARNING")
     
     def install_v2ray(self):
         """Install V2Ray on macOS"""
@@ -283,8 +287,14 @@ class MacOSHandler(PlatformHandler):
         # Method 2: Manual installation
         log("Installing V2Ray manually...", "INFO")
         
-        # Download V2Ray for macOS
-        download_url = "https://github.com/v2fly/v2ray-core/releases/latest/download/v2ray-macos-64.zip"
+        # Detect architecture and download appropriate V2Ray version
+        arch = platform.machine().lower()
+        if arch == "arm64" or "apple" in arch:
+            # Apple Silicon (M1/M2)
+            download_url = "https://github.com/v2fly/v2ray-core/releases/latest/download/v2ray-macos-arm64-v5.zip"
+        else:
+            # Intel x86_64
+            download_url = "https://github.com/v2fly/v2ray-core/releases/latest/download/v2ray-macos-64.zip"
         temp_dir = tempfile.mkdtemp()
         zip_file = os.path.join(temp_dir, "v2ray-macos.zip")
         
@@ -322,7 +332,7 @@ class MacOSHandler(PlatformHandler):
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
             return False
-    
+
     def create_service(self):
         """Create launchd service for macOS"""
         plist_path = f"/Library/LaunchDaemons/{CONFIG.SERVICE_NAME}.plist"
@@ -369,15 +379,27 @@ class MacOSHandler(PlatformHandler):
         except Exception as e:
             log(f"Failed to create launchd service: {str(e)}", "ERROR")
             return False
-    
+
     def start_service(self):
         """Start V2Ray service on macOS"""
-        return run_command(f"sudo launchctl load /Library/LaunchDaemons/{CONFIG.SERVICE_NAME}.plist", check=False)
-    
+        plist_path = f"/Library/LaunchDaemons/{CONFIG.SERVICE_NAME}.plist"
+        # Try modern launchctl command first (macOS 10.11+)
+        result = run_command(f"sudo launchctl bootstrap system {plist_path}", check=False)
+        if result is None or "already bootstrapped" in str(result).lower():
+            # Fallback to legacy command for older macOS or if already loaded
+            result = run_command(f"sudo launchctl load -w {plist_path}", check=False)
+        return result
+
     def stop_service(self):
         """Stop V2Ray service on macOS"""
-        return run_command(f"sudo launchctl unload /Library/LaunchDaemons/{CONFIG.SERVICE_NAME}.plist", check=False)
-    
+        plist_path = f"/Library/LaunchDaemons/{CONFIG.SERVICE_NAME}.plist"
+        # Try modern launchctl command first (macOS 10.11+)
+        result = run_command(f"sudo launchctl bootout system/{CONFIG.SERVICE_NAME}", check=False)
+        if result is None:
+            # Fallback to legacy command for older macOS
+            result = run_command(f"sudo launchctl unload {plist_path}", check=False)
+        return result
+
     def restart_service(self):
         """Restart V2Ray service on macOS"""
         self.stop_service()
@@ -388,20 +410,35 @@ class MacOSHandler(PlatformHandler):
         """Enable service auto-start on macOS"""
         # launchd services with RunAtLoad=true start automatically
         return True
-    
+
     def disable_service(self):
         """Disable service auto-start on macOS"""
         self.stop_service()
         return True
-    
+
     def is_service_active(self):
         """Check if V2Ray service is running on macOS"""
-        result = run_command(f"sudo launchctl list | grep {CONFIG.SERVICE_NAME}", check=False)
-        return result is not None and CONFIG.SERVICE_NAME in result
-    
+        # Use direct launchctl list command for specific service
+        result = run_command(f"sudo launchctl list {CONFIG.SERVICE_NAME}", check=False)
+        # Check if service is listed and not in error state
+        if result and CONFIG.SERVICE_NAME in result:
+            # Parse PID from output (PID is first column, - means not running)
+            lines = result.strip().split('\n')
+            for line in lines:
+                if CONFIG.SERVICE_NAME in line:
+                    parts = line.split()
+                    if parts and parts[0] != '-':
+                        return True
+        return False
+
     def configure_proxychains(self):
         """Configure proxychains-ng for macOS"""
         proxychains_config = CONFIG.PROXYCHAINS_CONFIG
+        
+        # Check if proxychains-ng is installed
+        if not run_command("which proxychains4", check=False):
+            log("proxychains-ng not installed. Install it with: brew install proxychains-ng", "WARNING")
+            return
         
         if not os.path.exists(proxychains_config):
             # Create default configuration
@@ -469,7 +506,7 @@ class LinuxHandler(PlatformHandler):
             return False
         
         return True
-    
+
     def install_dependencies(self):
         """Install dependencies via apt-get"""
         log("Installing necessary dependencies...", "INFO")
@@ -556,7 +593,7 @@ class LinuxHandler(PlatformHandler):
         
         log("V2Ray installation completed", "SUCCESS")
         return True
-    
+
     def _fix_systemd_config_path(self):
         """Fix V2Ray systemd service config path to use standard path"""
         service_file = "/etc/systemd/system/v2ray.service"
@@ -617,7 +654,7 @@ WantedBy=multi-user.target
         except Exception as e:
             log(f"Failed to create systemd service: {str(e)}", "ERROR")
             return False
-    
+
     def start_service(self):
         """Start V2Ray service on Linux"""
         run_command("systemctl daemon-reload")
@@ -676,6 +713,17 @@ WantedBy=multi-user.target
 def get_platform_handler():
     """Get the appropriate platform handler"""
     if IS_MACOS:
+        # Check macOS version
+        mac_version = platform.mac_ver()[0]
+        if mac_version:
+            try:
+                major, minor = mac_version.split('.')[:2]
+                major, minor = int(major), int(minor)
+                if major == 10 and minor < 12:
+                    log(f"macOS {mac_version} detected. Some features may not work correctly.", "WARNING")
+                    log("Recommended: macOS 10.12 (Sierra) or later", "INFO")
+            except:
+                pass
         return MacOSHandler()
     elif IS_LINUX:
         return LinuxHandler()
@@ -1186,12 +1234,23 @@ proxy_status() {
     # Determine shell config file
     user_shell = os.environ.get('SHELL', '/bin/bash')
     
-    if 'zsh' in user_shell:
-        shell_rc = '.zshrc'
-    elif 'bash' in user_shell:
-        shell_rc = '.bashrc'
+    # macOS Catalina+ uses zsh by default
+    if IS_MACOS:
+        # Check for .zshrc first (default on modern macOS)
+        if os.path.exists(os.path.join(actual_home, '.zshrc')) or 'zsh' in user_shell:
+            shell_rc = '.zshrc'
+        elif os.path.exists(os.path.join(actual_home, '.bash_profile')):
+            shell_rc = '.bash_profile'  # macOS prefers .bash_profile over .bashrc
+        else:
+            shell_rc = '.zshrc'  # Default to zsh for new macOS
     else:
-        shell_rc = '.profile'
+        # Linux systems
+        if 'zsh' in user_shell:
+            shell_rc = '.zshrc'
+        elif 'bash' in user_shell:
+            shell_rc = '.bashrc'
+        else:
+            shell_rc = '.profile'
     
     rc_path = os.path.join(actual_home, shell_rc)
     
@@ -1734,6 +1793,18 @@ def show_help():
                     V2Ray Cross-Platform Management Tool - Help
 ================================================================================{Colors.END}
 
+[Command Line Usage]
+  python3 v2ray_command.py [command]
+  
+  Available commands:
+    help, --help, -h    Show this help message
+    status, proxy_status Display proxy and service status
+    start               Start V2Ray service
+    stop                Stop V2Ray service  
+    restart             Restart V2Ray service
+    test                Test proxy connection
+    (no command)        Enter interactive menu
+
 [Platform Support]
   • macOS (10.12+)
   • Linux (Ubuntu/Debian/CentOS/Fedora)
@@ -1824,6 +1895,49 @@ def show_status():
     
     print("="*60)
 
+def show_proxy_status():
+    """Display proxy status (for command line parameter)"""
+    print(f"\n{Colors.HEADER}Proxy Status{Colors.END}")
+    print("="*60)
+    
+    # Check environment variables
+    http_proxy = os.environ.get('http_proxy', '')
+    https_proxy = os.environ.get('https_proxy', '')
+    all_proxy = os.environ.get('all_proxy', '')
+    
+    if http_proxy or https_proxy or all_proxy:
+        print(f"Proxy Status: {Colors.GREEN}ON{Colors.END}")
+        if http_proxy:
+            print(f"HTTP Proxy: {Colors.CYAN}{http_proxy}{Colors.END}")
+        if https_proxy:
+            print(f"HTTPS Proxy: {Colors.CYAN}{https_proxy}{Colors.END}")
+        if all_proxy:
+            print(f"SOCKS Proxy: {Colors.CYAN}{all_proxy}{Colors.END}")
+    else:
+        print(f"Proxy Status: {Colors.RED}OFF{Colors.END}")
+        print("No proxy environment variables are set")
+    
+    # Check V2Ray service status
+    print(f"\nV2Ray Service: ", end="")
+    if PLATFORM_HANDLER.is_service_active():
+        print(f"{Colors.GREEN}Running{Colors.END}")
+        print(f"Current Node: {Colors.CYAN}{get_current_node_info()}{Colors.END}")
+        
+        # Show proxy ports
+        print(f"\nProxy Ports:")
+        print(f"  SOCKS5: {Colors.CYAN}127.0.0.1:10808{Colors.END}")
+        print(f"  HTTP: {Colors.CYAN}127.0.0.1:10809{Colors.END}")
+        
+        # Get current IP if service is running
+        print("\nChecking connection...")
+        ip_info = get_current_ip()
+        print(f"Current IP: {Colors.CYAN}{ip_info}{Colors.END}")
+    else:
+        print(f"{Colors.RED}Stopped{Colors.END}")
+        print("V2Ray service is not running. Start it with the interactive menu.")
+    
+    print("="*60)
+
 def show_main_menu():
     """Display main menu"""
     print(f"\n{Colors.BOLD}V2Ray Cross-Platform Management Tool v3.0{Colors.END}")
@@ -1855,9 +1969,48 @@ def main():
     """Main function"""
     # Check command line arguments
     if len(sys.argv) > 1:
-        if sys.argv[1] in ["--help", "-h"]:
+        command = sys.argv[1].lower()
+        
+        if command in ["--help", "-h", "help"]:
             show_help()
             return 0
+        elif command in ["proxy_status", "status"]:
+            # Display proxy status directly
+            show_proxy_status()
+            return 0
+        elif command in ["start"]:
+            # Start V2Ray service
+            print("Starting V2Ray service...")
+            PLATFORM_HANDLER.start_service()
+            if PLATFORM_HANDLER.is_service_active():
+                print(f"{Colors.GREEN}✓ V2Ray service started successfully{Colors.END}")
+            else:
+                print(f"{Colors.RED}✗ Failed to start V2Ray service{Colors.END}")
+            return 0
+        elif command in ["stop"]:
+            # Stop V2Ray service
+            print("Stopping V2Ray service...")
+            PLATFORM_HANDLER.stop_service()
+            print(f"{Colors.GREEN}✓ V2Ray service stopped{Colors.END}")
+            return 0
+        elif command in ["restart"]:
+            # Restart V2Ray service
+            print("Restarting V2Ray service...")
+            PLATFORM_HANDLER.restart_service()
+            if PLATFORM_HANDLER.is_service_active():
+                print(f"{Colors.GREEN}✓ V2Ray service restarted successfully{Colors.END}")
+            else:
+                print(f"{Colors.RED}✗ Failed to restart V2Ray service{Colors.END}")
+            return 0
+        elif command in ["test"]:
+            # Test proxy connection
+            test_proxy()
+            return 0
+        else:
+            print(f"{Colors.YELLOW}Unknown command: {command}{Colors.END}")
+            print(f"Available commands: help, status, start, stop, restart, test")
+            print(f"Run 'python3 {sys.argv[0]} --help' for more information")
+            return 1
     
     # Enter interactive menu
     print(f"{Colors.HEADER}V2Ray Cross-Platform Management Tool{Colors.END}")
