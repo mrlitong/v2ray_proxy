@@ -1,0 +1,44 @@
+#!/bin/bash
+# V2Ray command line wrapper
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON_SCRIPT="$SCRIPT_DIR/v2ray_command.py"
+
+# Check if script exists
+if [ ! -f "$PYTHON_SCRIPT" ]; then
+    echo "Error: v2ray_command.py not found in $SCRIPT_DIR"
+    exit 1
+fi
+
+# Check if running with sudo for certain commands
+needs_sudo() {
+    case "$1" in
+        start|stop|restart)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# Execute command
+if [ $# -eq 0 ]; then
+    # No arguments, run interactive mode with sudo
+    if [ "$EUID" -ne 0 ]; then
+        echo "Interactive mode requires sudo privileges"
+        exec sudo python3 "$PYTHON_SCRIPT"
+    else
+        python3 "$PYTHON_SCRIPT"
+    fi
+elif needs_sudo "$1"; then
+    # Commands that need sudo
+    if [ "$EUID" -ne 0 ]; then
+        exec sudo python3 "$PYTHON_SCRIPT" "$@"
+    else
+        python3 "$PYTHON_SCRIPT" "$@"
+    fi
+else
+    # Commands that don't need sudo
+    python3 "$PYTHON_SCRIPT" "$@"
+fi

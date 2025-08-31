@@ -1,0 +1,6 @@
+[gsou_cloud]
+# Replace with your actual V2Ray subscription URL
+v2ray=https://your-subscription-url-here
+
+# Example format:
+# v2ray=https://example.com/subscription/path
