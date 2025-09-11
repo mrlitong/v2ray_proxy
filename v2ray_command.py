@@ -1629,6 +1629,79 @@ def switch_node():
     except ValueError:
         log("Invalid input", "ERROR")
 
+def apply_vmess_link():
+    """Apply VMess link directly as system proxy"""
+    print(f"\n{Colors.HEADER}Apply Node As System Proxy{Colors.END}")
+    print("="*60)
+    print("Enter a VMess link to directly apply it as your system proxy.")
+    print("Example: vmess://eyJ2IjoiMiIsInBzIjoi...")
+    print("="*60)
+
+    vmess_link = input("\nPlease enter VMess link: ").strip()
+
+    if not vmess_link:
+        log("VMess link cannot be empty", "ERROR")
+        return
+
+    if not vmess_link.startswith("vmess://"):
+        log("Invalid VMess link format. Must start with 'vmess://'", "ERROR")
+        return
+
+    print(f"\nParsing VMess link...")
+
+    # Parse VMess link
+    node = parse_vmess(vmess_link)
+    if not node:
+        log("Failed to parse VMess link", "ERROR")
+        return
+
+    print(f"✓ Parsed node: {node['name']}")
+    print(f"  Server: {node['server']}:{node['port']}")
+    print(f"  Region: {node.get('region', 'Unknown')}")
+
+    # Test node connectivity
+    print(f"\nTesting node connectivity...")
+    test_result = test_node_latency(node)
+
+    if test_result["status"] == "online":
+        print(f"✓ Node is reachable (Latency: {test_result['latency']:.1f}ms)")
+    else:
+        print(f"✗ Node appears to be unreachable")
+        confirm = input("\nNode may be unavailable, continue applying? (y/n): ").strip().lower()
+        if confirm != 'y':
+            log("Operation cancelled", "INFO")
+            return
+
+    # Confirm application
+    print(f"\nReady to apply configuration:")
+    print(f"  Node: {node['name']}")
+    print(f"  Server: {node['server']}:{node['port']}")
+    print(f"  Protocol: {node.get('protocol', 'vmess')}")
+
+    confirm = input(f"\nApply this configuration? (y/n): ").strip().lower()
+    if confirm != 'y':
+        log("Operation cancelled", "INFO")
+        return
+
+    # Apply configuration
+    print(f"\nApplying configuration...")
+    if apply_node_config(node):
+        log(f"✓ VMess node applied successfully: {node['name']}", "SUCCESS")
+
+        # Test the connection
+        print(f"\nTesting proxy connection...")
+        time.sleep(2)  # Give service time to start
+
+        ip_info = get_current_ip()
+        print(f"Current IP: {Colors.CYAN}{ip_info}{Colors.END}")
+
+        print(f"\n{Colors.GREEN}✓ Configuration applied successfully!{Colors.END}")
+        print(f"Local proxy ports:")
+        print(f"  SOCKS5: 127.0.0.1:10808")
+        print(f"  HTTP: 127.0.0.1:10809")
+    else:
+        log("Failed to apply VMess configuration", "ERROR")
+
 def update_subscription():
     """Update subscription"""
     # Get subscription URL from subscription_url.ini
@@ -1952,6 +2025,7 @@ def show_main_menu():
     print("   23. Test All Nodes")
     print("3. Subscription Management")
     print("   31. Update Subscription")
+    print("   32. Apply Node As System Proxy")
     print("4. System Configuration")
     print("   41. Configure System Proxy")
     print("   42. Sync ProxyChains")
@@ -2073,6 +2147,10 @@ def main():
             elif choice == "31":
                 # Update subscription
                 update_subscription()
+            
+            elif choice == "32":
+                # Apply Node As System Proxy
+                apply_vmess_link()
             
             elif choice == "41":
                 # Configure system proxy
