@@ -119,6 +119,40 @@ BUILTIN_NODES = [
 
 DEFAULT_UUID = "39a279a5-55bb-3a27-ad9b-6ec81ff5779a"
 
+# ==================== Static Proxy Configuration ====================
+def get_static_proxy_config():
+    """Load static proxy configuration from subscription_url.ini"""
+    ini_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "subscription_url.ini")
+
+    # Default configuration
+    default_config = {
+        "server": "your.static.proxy.ip",
+        "port": 443,
+        "username": "",
+        "password": "",
+        "protocol": "http"
+    }
+
+    if not os.path.exists(ini_path):
+        return default_config
+
+    try:
+        config = configparser.ConfigParser()
+        config.read(ini_path, encoding='utf-8')
+
+        if config.has_section('static_proxy'):
+            return {
+                "server": config.get('static_proxy', 'server', fallback=default_config['server']),
+                "port": config.getint('static_proxy', 'port', fallback=default_config['port']),
+                "username": config.get('static_proxy', 'username', fallback=default_config['username']),
+                "password": config.get('static_proxy', 'password', fallback=default_config['password']),
+                "protocol": config.get('static_proxy', 'protocol', fallback=default_config['protocol'])
+            }
+    except Exception as e:
+        log(f"Failed to load static proxy config: {str(e)}", "WARNING")
+
+    return default_config
+
 # ==================== Logging ====================
 def log(message, level="INFO"):
     """Log messages"""
@@ -872,8 +906,14 @@ def parse_subscription(url):
         log(f"Failed to parse subscription: {str(e)}", "ERROR")
         return []
 
-def generate_v2ray_config(node):
-    """Generate V2Ray configuration"""
+def generate_v2ray_config(node, proxy_mode="direct", static_proxy_config=None):
+    """Generate V2Ray configuration
+
+    Args:
+        node: V2Ray node configuration
+        proxy_mode: "direct" (一级代理) or "chained" (二级代理)
+        static_proxy_config: Static proxy configuration (for chained mode)
+    """
     config = {
         "log": {
             "loglevel": "warning"
@@ -985,7 +1025,54 @@ def generate_v2ray_config(node):
             }
         }
 
-    config["outbounds"] = [outbound]
+    # Configure outbounds based on proxy mode
+    if proxy_mode == "chained" and static_proxy_config:
+        # 二级代理模式: 本机 -> V2Ray节点 -> 静态IP -> 互联网
+        # Tag the main outbound
+        outbound["tag"] = "proxy-node"
+
+        # Create static proxy outbound
+        static_outbound = {
+            "tag": "static-proxy",
+            "protocol": "socks" if static_proxy_config.get("protocol") == "socks5" else "http",
+            "settings": {},
+            "proxySettings": {
+                "tag": "proxy-node"  # 先经过V2Ray节点
+            }
+        }
+
+        # Configure static proxy based on protocol
+        if static_proxy_config.get("protocol") == "socks5":
+            static_outbound["settings"]["servers"] = [{
+                "address": static_proxy_config.get("server"),
+                "port": static_proxy_config.get("port"),
+                "users": [{
+                    "user": static_proxy_config.get("username", ""),
+                    "pass": static_proxy_config.get("password", "")
+                }] if static_proxy_config.get("username") else []
+            }]
+        else:  # HTTP/HTTPS
+            static_outbound["settings"]["servers"] = [{
+                "address": static_proxy_config.get("server"),
+                "port": static_proxy_config.get("port"),
+                "users": [{
+                    "user": static_proxy_config.get("username", ""),
+                    "pass": static_proxy_config.get("password", "")
+                }] if static_proxy_config.get("username") else []
+            }]
+
+        config["outbounds"] = [outbound, static_outbound]
+
+        # Route all traffic through static proxy
+        config["routing"]["rules"] = [{
+            "type": "field",
+            "network": "tcp,udp",
+            "outboundTag": "static-proxy"
+        }]
+    else:
+        # 一级代理模式: 本机 -> V2Ray节点 -> 互联网
+        config["outbounds"] = [outbound]
+
     return config
 
 def test_node_latency(node, timeout=5, test_count=3):
@@ -1289,11 +1376,16 @@ proxy_status() {
 
 def save_subscription(url, nodes):
     """Save subscription information"""
+    # Load existing config to preserve proxy settings
+    existing_config = load_subscription()
+
     subscription_data = {
         "url": url,
         "nodes": nodes,
         "update_time": int(time.time()),
-        "selected_index": 0
+        "selected_index": 0,
+        "proxy_mode": existing_config.get("proxy_mode", "direct") if existing_config else "direct",
+        "static_proxy": existing_config.get("static_proxy", get_static_proxy_config()) if existing_config else get_static_proxy_config()
     }
 
     # Backup existing configuration
@@ -1318,8 +1410,13 @@ def load_subscription():
 
 def apply_node_config(node):
     """Apply node configuration"""
-    # Generate new configuration
-    config = generate_v2ray_config(node)
+    # Load subscription to get proxy mode
+    subscription = load_subscription()
+    proxy_mode = subscription.get("proxy_mode", "direct") if subscription else "direct"
+    static_proxy_config = subscription.get("static_proxy", get_static_proxy_config()) if subscription else get_static_proxy_config()
+
+    # Generate new configuration with proxy mode
+    config = generate_v2ray_config(node, proxy_mode, static_proxy_config)
     
     # Create config directory if not exists
     os.makedirs(CONFIG.CONFIG_DIR, exist_ok=True)
@@ -1362,6 +1459,193 @@ def apply_node_config(node):
         return True
     else:
         log("V2Ray service failed to start", "ERROR")
+        return False
+
+def get_proxy_mode():
+    """Get current proxy mode"""
+    subscription = load_subscription()
+    if subscription:
+        return subscription.get("proxy_mode", "direct")
+    return "direct"
+
+def configure_static_proxy():
+    """Configure static IP proxy"""
+    print("\n" + "="*60)
+    print("Configure Static IP Proxy (二级代理配置)")
+    print("="*60)
+
+    subscription = load_subscription()
+    if not subscription:
+        log("No subscription configuration found. Please run Quick Start first.", "ERROR")
+        return
+
+    current_config = subscription.get("static_proxy", get_static_proxy_config())
+
+    print(f"\nCurrent configuration:")
+    print(f"  Server: {current_config.get('server')}")
+    print(f"  Port: {current_config.get('port')}")
+    print(f"  Username: {current_config.get('username')}")
+    print(f"  Protocol: {current_config.get('protocol')}")
+
+    print("\nEnter new configuration (press Enter to keep current value):")
+
+    server = input(f"Server [{current_config.get('server')}]: ").strip()
+    port = input(f"Port [{current_config.get('port')}]: ").strip()
+    username = input(f"Username [{current_config.get('username')}]: ").strip()
+    password = input(f"Password: ").strip()
+    protocol = input(f"Protocol (http/socks5) [{current_config.get('protocol')}]: ").strip().lower()
+
+    # Update configuration
+    new_config = {
+        "server": server if server else current_config.get('server'),
+        "port": int(port) if port else current_config.get('port'),
+        "username": username if username else current_config.get('username'),
+        "password": password if password else current_config.get('password'),
+        "protocol": protocol if protocol in ['http', 'socks5'] else current_config.get('protocol')
+    }
+
+    # Save to subscription
+    subscription["static_proxy"] = new_config
+
+    try:
+        with open(CONFIG.SUBSCRIPTION_FILE, 'w', encoding='utf-8') as f:
+            json.dump(subscription, f, indent=2, ensure_ascii=False)
+        log("Static proxy configuration saved", "SUCCESS")
+
+        # Ask if want to apply changes
+        if subscription.get("proxy_mode") == "chained":
+            apply = input("\nApply changes now (restart V2Ray)? (y/n): ").strip().lower()
+            if apply == 'y':
+                apply_proxy_mode("chained")
+    except Exception as e:
+        log(f"Failed to save configuration: {str(e)}", "ERROR")
+
+def toggle_proxy_mode(target_mode=None):
+    """Toggle proxy mode between direct and chained
+
+    Args:
+        target_mode: "direct", "chained", or None (auto toggle)
+    """
+    subscription = load_subscription()
+    if not subscription:
+        log("No subscription configuration found. Please run Quick Start first.", "ERROR")
+        return
+
+    current_mode = subscription.get("proxy_mode", "direct")
+
+    # Determine target mode
+    if target_mode is None:
+        # Auto toggle
+        new_mode = "chained" if current_mode == "direct" else "direct"
+    else:
+        new_mode = target_mode
+
+    if new_mode not in ["direct", "chained"]:
+        log("Invalid proxy mode. Use 'direct' or 'chained'", "ERROR")
+        return
+
+    if current_mode == new_mode:
+        log(f"Already in {new_mode} mode", "INFO")
+        return
+
+    print(f"\nSwitching proxy mode: {current_mode} -> {new_mode}")
+
+    # Update mode in subscription
+    subscription["proxy_mode"] = new_mode
+
+    try:
+        with open(CONFIG.SUBSCRIPTION_FILE, 'w', encoding='utf-8') as f:
+            json.dump(subscription, f, indent=2, ensure_ascii=False)
+
+        # Apply new mode
+        apply_proxy_mode(new_mode)
+
+    except Exception as e:
+        log(f"Failed to switch proxy mode: {str(e)}", "ERROR")
+
+def apply_proxy_mode(mode):
+    """Apply proxy mode (regenerate config and restart service)"""
+    log(f"Applying proxy mode: {mode}", "INFO")
+
+    # Get current node configuration
+    try:
+        if not os.path.exists(CONFIG.CONFIG_FILE):
+            log("No V2Ray configuration found. Please select a node first.", "ERROR")
+            return False
+
+        with open(CONFIG.CONFIG_FILE, 'r') as f:
+            current_config = json.load(f)
+
+        # Extract current node info
+        if not current_config.get("outbounds"):
+            log("Invalid configuration format", "ERROR")
+            return False
+
+        # Find the proxy-node outbound (or first outbound)
+        node_outbound = None
+        for outbound in current_config["outbounds"]:
+            if outbound.get("tag") == "proxy-node" or not node_outbound:
+                node_outbound = outbound
+                if outbound.get("tag") == "proxy-node":
+                    break
+
+        if not node_outbound:
+            log("No valid outbound found", "ERROR")
+            return False
+
+        # Get server info from outbound
+        vnext = node_outbound.get("settings", {}).get("vnext", [])
+        if not vnext:
+            log("No server configuration found", "ERROR")
+            return False
+
+        server_info = vnext[0]
+
+        # Find matching node from available nodes
+        all_nodes = get_available_nodes()
+        selected_node = None
+
+        for node in all_nodes:
+            if (node.get("server") == server_info.get("address") and
+                node.get("port") == server_info.get("port")):
+                selected_node = node
+                break
+
+        if not selected_node:
+            # Create a basic node from current config
+            selected_node = {
+                "protocol": node_outbound.get("protocol", "vmess"),
+                "server": server_info.get("address"),
+                "port": server_info.get("port"),
+                "uuid": server_info.get("users", [{}])[0].get("id", DEFAULT_UUID),
+                "name": "Current Node"
+            }
+
+        # Regenerate and apply config
+        if apply_node_config(selected_node):
+            mode_name = "一级代理 (Direct)" if mode == "direct" else "二级代理 (Chained)"
+            log(f"Successfully switched to {mode_name}", "SUCCESS")
+
+            # Show mode info
+            if mode == "chained":
+                subscription = load_subscription()
+                static_config = subscription.get("static_proxy", get_static_proxy_config())
+                print(f"\n{Colors.CYAN}二级代理信息:{Colors.END}")
+                print(f"  静态IP: {static_config.get('server')}:{static_config.get('port')}")
+                print(f"  协议: {static_config.get('protocol').upper()}")
+                print(f"\n{Colors.YELLOW}流量路径:{Colors.END}")
+                print(f"  本机 → V2Ray节点 → 静态IP({static_config.get('server')}) → 互联网")
+            else:
+                print(f"\n{Colors.YELLOW}流量路径:{Colors.END}")
+                print(f"  本机 → V2Ray节点 → 互联网")
+
+            return True
+        else:
+            log("Failed to apply configuration", "ERROR")
+            return False
+
+    except Exception as e:
+        log(f"Error applying proxy mode: {str(e)}", "ERROR")
         return False
 
 def test_proxy():
@@ -1868,14 +2152,19 @@ def show_help():
 
 [Command Line Usage]
   python3 v2ray_command.py [command]
-  
+
   Available commands:
     help, --help, -h    Show this help message
     status, proxy_status Display proxy and service status
     start               Start V2Ray service
-    stop                Stop V2Ray service  
+    stop                Stop V2Ray service
     restart             Restart V2Ray service
     test                Test proxy connection
+    mode <action>       Proxy mode management
+      direct            Switch to 一级代理 (Direct mode)
+      chained           Switch to 二级代理 (Chained mode)
+      toggle            Toggle between modes
+      status            Show current proxy mode
     (no command)        Enter interactive menu
 
 [Platform Support]
@@ -1912,6 +2201,13 @@ def show_help():
 4. {Colors.BOLD}System Configuration{Colors.END}
    - Configure system proxy
    - Platform-specific optimizations
+   - Static IP proxy configuration (二级代理)
+   - Proxy mode switching (一级/二级代理切换)
+
+5. {Colors.BOLD}Proxy Modes{Colors.END}
+   - Direct Mode (一级代理): 本机 → V2Ray节点 → 互联网
+   - Chained Mode (二级代理): 本机 → V2Ray节点 → 静态IP → 互联网
+   - Quick toggle between modes without changing nodes
 
 [Configuration Locations]
   macOS:
@@ -1936,25 +2232,38 @@ def show_status():
     """Display current status"""
     print(f"\n{Colors.HEADER}V2Ray Service Status{Colors.END}")
     print("="*60)
-    
+
     # Platform info
     print(f"Platform: {Colors.CYAN}{platform.system()} {platform.release()}{Colors.END}")
-    
+
     # Service status
     if PLATFORM_HANDLER.is_service_active():
         print(f"Service Status: {Colors.GREEN}Running{Colors.END}")
     else:
         print(f"Service Status: {Colors.RED}Stopped{Colors.END}")
-    
+
+    # Proxy mode
+    proxy_mode = get_proxy_mode()
+    mode_name = "一级代理 (Direct)" if proxy_mode == "direct" else "二级代理 (Chained)"
+    mode_color = Colors.GREEN if proxy_mode == "direct" else Colors.CYAN
+    print(f"Proxy Mode: {mode_color}{mode_name}{Colors.END}")
+
+    # Show static proxy info if in chained mode
+    if proxy_mode == "chained":
+        subscription = load_subscription()
+        if subscription:
+            static_config = subscription.get("static_proxy", get_static_proxy_config())
+            print(f"Static Proxy: {static_config.get('server')}:{static_config.get('port')} ({static_config.get('protocol').upper()})")
+
     # Current node
     print(f"Current Node: {Colors.BOLD}{Colors.CYAN}{get_current_node_info()}{Colors.END}")
-    
+
     # IP information
     if PLATFORM_HANDLER.is_service_active():
         print("Getting IP information...")
         ip_info = get_current_ip()
         print(f"Current IP: {ip_info}")
-    
+
     # Subscription info
     subscription = load_subscription()
     if subscription:
@@ -1965,19 +2274,19 @@ def show_status():
         print(f"Last Update: {last_update}")
     else:
         print("\nSubscription Nodes: Not configured (using built-in nodes)")
-    
+
     print("="*60)
 
 def show_proxy_status():
     """Display proxy status (for command line parameter)"""
     print(f"\n{Colors.HEADER}Proxy Status{Colors.END}")
     print("="*60)
-    
+
     # Check environment variables
     http_proxy = os.environ.get('http_proxy', '')
     https_proxy = os.environ.get('https_proxy', '')
     all_proxy = os.environ.get('all_proxy', '')
-    
+
     if http_proxy or https_proxy or all_proxy:
         print(f"Proxy Status: {Colors.GREEN}ON{Colors.END}")
         if http_proxy:
@@ -1989,18 +2298,32 @@ def show_proxy_status():
     else:
         print(f"Proxy Status: {Colors.RED}OFF{Colors.END}")
         print("No proxy environment variables are set")
-    
+
     # Check V2Ray service status
     print(f"\nV2Ray Service: ", end="")
     if PLATFORM_HANDLER.is_service_active():
         print(f"{Colors.GREEN}Running{Colors.END}")
+
+        # Show proxy mode
+        proxy_mode = get_proxy_mode()
+        mode_name = "一级代理 (Direct)" if proxy_mode == "direct" else "二级代理 (Chained)"
+        mode_color = Colors.GREEN if proxy_mode == "direct" else Colors.CYAN
+        print(f"Proxy Mode: {mode_color}{mode_name}{Colors.END}")
+
+        # Show static proxy info if in chained mode
+        if proxy_mode == "chained":
+            subscription = load_subscription()
+            if subscription:
+                static_config = subscription.get("static_proxy", get_static_proxy_config())
+                print(f"Static Proxy: {Colors.CYAN}{static_config.get('server')}:{static_config.get('port')} ({static_config.get('protocol').upper()}){Colors.END}")
+
         print(f"Current Node: {Colors.CYAN}{get_current_node_info()}{Colors.END}")
-        
+
         # Show proxy ports
         print(f"\nProxy Ports:")
         print(f"  SOCKS5: {Colors.CYAN}127.0.0.1:10808{Colors.END}")
         print(f"  HTTP: {Colors.CYAN}127.0.0.1:10809{Colors.END}")
-        
+
         # Get current IP if service is running
         print("\nChecking connection...")
         ip_info = get_current_ip()
@@ -2008,15 +2331,20 @@ def show_proxy_status():
     else:
         print(f"{Colors.RED}Stopped{Colors.END}")
         print("V2Ray service is not running. Start it with the interactive menu.")
-    
+
     print("="*60)
 
 def show_main_menu():
     """Display main menu"""
+    # Get proxy mode for display
+    proxy_mode = get_proxy_mode()
+    mode_display = f"{Colors.GREEN}一级代理{Colors.END}" if proxy_mode == "direct" else f"{Colors.CYAN}二级代理{Colors.END}"
+
     print(f"\n{Colors.BOLD}V2Ray Cross-Platform Management Tool v3.0{Colors.END}")
     print(f"Platform: {Colors.CYAN}{platform.system()}{Colors.END}")
     print("="*60)
     print(f"Current Node: {Colors.BOLD}{Colors.CYAN}{get_current_node_info()}{Colors.END}")
+    print(f"Proxy Mode: {mode_display}")
     print("="*60)
     print("1. Quick Start (recommended for new users)")
     print("2. Node Management")
@@ -2030,6 +2358,8 @@ def show_main_menu():
     print("   41. Configure System Proxy")
     print("   42. Sync ProxyChains")
     print("   43. Reset System Proxy to Default")
+    print("   44. Configure Static IP Proxy (二级代理配置)")
+    print("   45. Toggle Proxy Mode (切换一级/二级代理)")
     print("5. Advanced Features")
     print("   51. View Service Status")
     print("   52. Test Proxy Connection")
@@ -2080,9 +2410,36 @@ def main():
             # Test proxy connection
             test_proxy()
             return 0
+        elif command in ["mode"]:
+            # Proxy mode operations
+            if len(sys.argv) < 3:
+                print(f"{Colors.YELLOW}Usage: python3 {sys.argv[0]} mode <direct|chained|toggle|status>{Colors.END}")
+                return 1
+
+            mode_action = sys.argv[2].lower()
+            if mode_action == "direct":
+                toggle_proxy_mode("direct")
+            elif mode_action == "chained":
+                toggle_proxy_mode("chained")
+            elif mode_action == "toggle":
+                toggle_proxy_mode()
+            elif mode_action == "status":
+                proxy_mode = get_proxy_mode()
+                mode_name = "一级代理 (Direct)" if proxy_mode == "direct" else "二级代理 (Chained)"
+                print(f"Current proxy mode: {mode_name}")
+                if proxy_mode == "chained":
+                    subscription = load_subscription()
+                    if subscription:
+                        static_config = subscription.get("static_proxy", get_static_proxy_config())
+                        print(f"Static Proxy: {static_config.get('server')}:{static_config.get('port')} ({static_config.get('protocol').upper()})")
+            else:
+                print(f"{Colors.YELLOW}Invalid mode action: {mode_action}{Colors.END}")
+                print(f"Available actions: direct, chained, toggle, status")
+                return 1
+            return 0
         else:
             print(f"{Colors.YELLOW}Unknown command: {command}{Colors.END}")
-            print(f"Available commands: help, status, start, stop, restart, test")
+            print(f"Available commands: help, status, start, stop, restart, test, mode")
             print(f"Run 'python3 {sys.argv[0]} --help' for more information")
             return 1
     
@@ -2170,7 +2527,15 @@ def main():
                               "\nContinue? (y/n): ").strip().lower()
                 if confirm == 'y':
                     reset_system_proxy()
-            
+
+            elif choice == "44":
+                # Configure static proxy
+                configure_static_proxy()
+
+            elif choice == "45":
+                # Toggle proxy mode
+                toggle_proxy_mode()
+
             elif choice == "51":
                 # View service status
                 show_status()

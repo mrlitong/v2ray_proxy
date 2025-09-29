@@ -1,0 +1,16 @@
+# V2Ray 订阅和代理配置文件
+# 使用方法: 复制此文件为 subscription_url.ini 并填入实际配置
+
+# V2Ray订阅配置
+[gsou_cloud]
+v2ray=https://your-subscription-url-here
+
+# 二级代理配置（可选）
+# 启用后流量路径: 本机 -> V2Ray节点 -> 静态IP代理 -> 互联网
+# 通过命令切换: sudo python3 v2ray_command.py mode chained
+[static_proxy]
+server=your.static.proxy.ip
+port=443
+username=your_username
+password=your_password
+protocol=http
