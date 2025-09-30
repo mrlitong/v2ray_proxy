@@ -28,10 +28,10 @@ proxy_status() {
         echo
         echo "Proxy IP Information:"
         echo "===================="
-        
+
         # 获取 IP 信息
         local ip_info=$(curl -s https://ipinfo.io 2>/dev/null)
-        
+
         if [ -n "$ip_info" ]; then
             # 使用 Python 或 jq 解析 JSON（如果可用）
             if command -v python3 >/dev/null 2>&1; then
@@ -64,7 +64,7 @@ except:
                 local loc=$(echo "$ip_info" | grep -oP '"loc":\s*"\K[^"]*' 2>/dev/null || echo "N/A")
                 local org=$(echo "$ip_info" | grep -oP '"org":\s*"\K[^"]*' 2>/dev/null || echo "N/A")
                 local timezone=$(echo "$ip_info" | grep -oP '"timezone":\s*"\K[^"]*' 2>/dev/null || echo "N/A")
-                
+
                 echo "IP Address: $ip"
                 echo "Location: $city, $region, $country"
                 echo "Coordinates: $loc"
@@ -75,4 +75,95 @@ except:
             echo "Unable to fetch proxy IP information"
         fi
     fi
+}
+
+# V2Ray代理模式管理
+proxy_mode_direct() {
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "$script_dir/v2ray_command.py" ]; then
+        sudo python3 "$script_dir/v2ray_command.py" mode direct
+    else
+        echo "错误: 找不到 v2ray_command.py"
+    fi
+}
+
+proxy_mode_chained() {
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "$script_dir/v2ray_command.py" ]; then
+        sudo python3 "$script_dir/v2ray_command.py" mode chained
+    else
+        echo "错误: 找不到 v2ray_command.py"
+    fi
+}
+
+proxy_mode_toggle() {
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "$script_dir/v2ray_command.py" ]; then
+        sudo python3 "$script_dir/v2ray_command.py" mode toggle
+    else
+        echo "错误: 找不到 v2ray_command.py"
+    fi
+}
+
+proxy_mode_status() {
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "$script_dir/v2ray_command.py" ]; then
+        python3 "$script_dir/v2ray_command.py" mode status
+    else
+        echo "错误: 找不到 v2ray_command.py"
+    fi
+}
+
+proxy_help() {
+    cat << 'EOF'
+╔══════════════════════════════════════════════════════════════╗
+║              V2Ray 代理管理快捷命令                          ║
+╚══════════════════════════════════════════════════════════════╝
+
+【环境变量管理】
+  proxy_on          - 启用系统代理环境变量
+  proxy_off         - 禁用系统代理环境变量
+  proxy_status      - 查看代理状态和出口IP信息
+
+【代理模式切换】
+  proxy_mode_direct   - 切换到一级代理 (本机 → V2Ray → 互联网)
+  proxy_mode_chained  - 切换到二级代理 (本机 → V2Ray → 静态IP → 互联网)
+  proxy_mode_toggle   - 一键切换代理模式
+  proxy_mode_status   - 查看当前代理模式
+
+【帮助】
+  proxy_help        - 显示此帮助信息
+
+╔══════════════════════════════════════════════════════════════╗
+║ 使用示例                                                     ║
+╚══════════════════════════════════════════════════════════════╝
+
+  # 启用代理环境变量
+  $ proxy_on
+
+  # 查看当前IP和代理状态
+  $ proxy_status
+
+  # 切换到二级代理（使用静态IP）
+  $ proxy_mode_chained
+
+  # 查看当前代理模式
+  $ proxy_mode_status
+
+  # 快速切换代理模式
+  $ proxy_mode_toggle
+
+  # 禁用代理环境变量
+  $ proxy_off
+
+╔══════════════════════════════════════════════════════════════╗
+║ 说明                                                         ║
+╚══════════════════════════════════════════════════════════════╝
+
+  • 一级代理: 适合日常使用，速度快
+  • 二级代理: 通过静态IP访问，适合需要固定IP的场景
+  • proxy_on/off 只控制环境变量，不影响V2Ray服务
+  • 代理模式切换需要sudo权限，会自动重启V2Ray服务
+
+EOF
 }
