@@ -79,38 +79,38 @@ except:
 
 # V2Ray代理模式管理
 proxy_mode_direct() {
-    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -f "$script_dir/v2ray_command.py" ]; then
-        sudo python3 "$script_dir/v2ray_command.py" mode direct
+    local v2ray_script="$HOME/v2ray_proxy/v2ray_command.py"
+    if [ -f "$v2ray_script" ]; then
+        sudo python3 "$v2ray_script" mode direct
     else
-        echo "错误: 找不到 v2ray_command.py"
+        echo "错误: 找不到 v2ray_command.py (路径: $v2ray_script)"
     fi
 }
 
 proxy_mode_chained() {
-    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -f "$script_dir/v2ray_command.py" ]; then
-        sudo python3 "$script_dir/v2ray_command.py" mode chained
+    local v2ray_script="$HOME/v2ray_proxy/v2ray_command.py"
+    if [ -f "$v2ray_script" ]; then
+        sudo python3 "$v2ray_script" mode chained
     else
-        echo "错误: 找不到 v2ray_command.py"
+        echo "错误: 找不到 v2ray_command.py (路径: $v2ray_script)"
     fi
 }
 
 proxy_mode_toggle() {
-    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -f "$script_dir/v2ray_command.py" ]; then
-        sudo python3 "$script_dir/v2ray_command.py" mode toggle
+    local v2ray_script="$HOME/v2ray_proxy/v2ray_command.py"
+    if [ -f "$v2ray_script" ]; then
+        sudo python3 "$v2ray_script" mode toggle
     else
-        echo "错误: 找不到 v2ray_command.py"
+        echo "错误: 找不到 v2ray_command.py (路径: $v2ray_script)"
     fi
 }
 
 proxy_mode_status() {
-    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -f "$script_dir/v2ray_command.py" ]; then
-        python3 "$script_dir/v2ray_command.py" mode status
+    local v2ray_script="$HOME/v2ray_proxy/v2ray_command.py"
+    if [ -f "$v2ray_script" ]; then
+        python3 "$v2ray_script" mode status
     else
-        echo "错误: 找不到 v2ray_command.py"
+        echo "错误: 找不到 v2ray_command.py (路径: $v2ray_script)"
     fi
 }
 
