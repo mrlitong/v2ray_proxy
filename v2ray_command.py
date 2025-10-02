@@ -701,7 +701,11 @@ WantedBy=multi-user.target
     def restart_service(self):
         """Restart V2Ray service on Linux"""
         run_command("systemctl daemon-reload")
-        return run_command("systemctl restart v2ray", check=False)
+        # Stop service first and wait for port to be released
+        run_command("systemctl stop v2ray", check=False)
+        time.sleep(1)  # Wait for port to be released
+        # Start service
+        return run_command("systemctl start v2ray", check=False)
     
     def enable_service(self):
         """Enable service auto-start on Linux"""
