@@ -850,17 +850,17 @@ def infer_region(name):
     name_lower = name.lower()
 
     region_keywords = {
-        "Hong Kong": ["hk", "hong kong", "hongkong", "香港"],
-        "Japan": ["jp", "japan", "tokyo", "日本"],
-        "Singapore": ["sg", "singapore", "新加坡"],
-        "USA": ["us", "america", "usa", "美国"],
-        "Korea": ["kr", "korea", "seoul", "韩国"],
-        "Taiwan": ["tw", "taiwan", "台湾"],
-        "Canada": ["ca", "canada", "加拿大"],
-        "UK": ["uk", "britain", "london", "英国"],
-        "Germany": ["de", "germany", "frankfurt", "德国"],
-        "India": ["in", "india", "mumbai", "印度"],
-        "Russia": ["ru", "russia", "moscow", "俄罗斯"]
+        "Hong Kong": ["hk", "hong kong", "hongkong", "xianggang"],
+        "Japan": ["jp", "japan", "tokyo", "riben"],
+        "Singapore": ["sg", "singapore", "xinjiapo"],
+        "USA": ["us", "america", "usa", "meiguo"],
+        "Korea": ["kr", "korea", "seoul", "hanguo"],
+        "Taiwan": ["tw", "taiwan", "taiw"],
+        "Canada": ["ca", "canada", "jianada"],
+        "UK": ["uk", "britain", "london", "yingguo"],
+        "Germany": ["de", "germany", "frankfurt", "deguo"],
+        "India": ["in", "india", "mumbai", "yindu"],
+        "Russia": ["ru", "russia", "moscow", "eluosi"]
     }
 
     for region, keywords in region_keywords.items():
@@ -915,7 +915,7 @@ def generate_v2ray_config(node, proxy_mode="direct", static_proxy_config=None):
 
     Args:
         node: V2Ray node configuration
-        proxy_mode: "direct" (一级代理) or "chained" (二级代理)
+        proxy_mode: "direct" (Level-1 proxy) or "chained" (Level-2 proxy)
         static_proxy_config: Static proxy configuration (for chained mode)
     """
     config = {
@@ -1031,7 +1031,7 @@ def generate_v2ray_config(node, proxy_mode="direct", static_proxy_config=None):
 
     # Configure outbounds based on proxy mode
     if proxy_mode == "chained" and static_proxy_config:
-        # 二级代理模式: 本机 -> V2Ray节点 -> 静态IP -> 互联网
+        # Level-2 proxy mode: Local -> V2Ray Node -> Static IP -> Internet
         # Tag the main outbound
         outbound["tag"] = "proxy-node"
 
@@ -1041,7 +1041,7 @@ def generate_v2ray_config(node, proxy_mode="direct", static_proxy_config=None):
             "protocol": "socks" if static_proxy_config.get("protocol") == "socks5" else "http",
             "settings": {},
             "proxySettings": {
-                "tag": "proxy-node"  # 先经过V2Ray节点
+                "tag": "proxy-node"  # Pass through V2Ray node first
             }
         }
 
@@ -1074,7 +1074,7 @@ def generate_v2ray_config(node, proxy_mode="direct", static_proxy_config=None):
             "outboundTag": "static-proxy"
         }]
     else:
-        # 一级代理模式: 本机 -> V2Ray节点 -> 互联网
+        # Level-1 proxy mode: Local -> V2Ray Node -> Internet
         config["outbounds"] = [outbound]
 
     return config
@@ -1122,7 +1122,7 @@ def test_all_nodes(nodes):
         """Check if this is a valid VPN node"""
         node_name = node.get('name', '').lower()
         # Filter out subscription metadata entries
-        if any(keyword in node_name for keyword in ['剩余流量', '过期时间', 'traffic', 'expire', 'remaining']):
+        if any(keyword in node_name for keyword in ['remaining traffic', 'expiry time', 'traffic', 'expire', 'remaining']):
             return False
         # Check if node has required fields
         if not node.get('server') or not node.get('port'):
@@ -1475,7 +1475,7 @@ def get_proxy_mode():
 def configure_static_proxy():
     """Configure static IP proxy"""
     print("\n" + "="*60)
-    print("Configure Static IP Proxy (二级代理配置)")
+    print("Configure Static IP Proxy (Level-2 Proxy Configuration)")
     print("="*60)
 
     subscription = load_subscription()
@@ -1627,21 +1627,21 @@ def apply_proxy_mode(mode):
 
         # Regenerate and apply config
         if apply_node_config(selected_node):
-            mode_name = "一级代理 (Direct)" if mode == "direct" else "二级代理 (Chained)"
+            mode_name = "Level-1 Proxy (Direct)" if mode == "direct" else "Level-2 Proxy (Chained)"
             log(f"Successfully switched to {mode_name}", "SUCCESS")
 
             # Show mode info
             if mode == "chained":
                 subscription = load_subscription()
                 static_config = subscription.get("static_proxy", get_static_proxy_config())
-                print(f"\n{Colors.CYAN}二级代理信息:{Colors.END}")
-                print(f"  静态IP: {static_config.get('server')}:{static_config.get('port')}")
-                print(f"  协议: {static_config.get('protocol').upper()}")
-                print(f"\n{Colors.YELLOW}流量路径:{Colors.END}")
-                print(f"  本机 → V2Ray节点 → 静态IP({static_config.get('server')}) → 互联网")
+                print(f"\n{Colors.CYAN}Level-2 Proxy Information:{Colors.END}")
+                print(f"  Static IP: {static_config.get('server')}:{static_config.get('port')}")
+                print(f"  Protocol: {static_config.get('protocol').upper()}")
+                print(f"\n{Colors.YELLOW}Traffic Path:{Colors.END}")
+                print(f"  Local → V2Ray Node → Static IP({static_config.get('server')}) → Internet")
             else:
-                print(f"\n{Colors.YELLOW}流量路径:{Colors.END}")
-                print(f"  本机 → V2Ray节点 → 互联网")
+                print(f"\n{Colors.YELLOW}Traffic Path:{Colors.END}")
+                print(f"  Local → V2Ray Node → Internet")
 
             return True
         else:
@@ -1853,7 +1853,7 @@ def switch_node():
         """Check if this is a valid VPN node"""
         node_name = node.get('name', '').lower()
         # Filter out subscription metadata entries
-        if any(keyword in node_name for keyword in ['剩余流量', '过期时间', 'traffic', 'expire', 'remaining']):
+        if any(keyword in node_name for keyword in ['remaining traffic', 'expiry time', 'traffic', 'expire', 'remaining']):
             return False
         # Check if node has required fields
         if not node.get('server') or not node.get('port'):
@@ -2165,8 +2165,8 @@ def show_help():
     restart             Restart V2Ray service
     test                Test proxy connection
     mode <action>       Proxy mode management
-      direct            Switch to 一级代理 (Direct mode)
-      chained           Switch to 二级代理 (Chained mode)
+      direct            Switch to Level-1 Proxy (Direct mode)
+      chained           Switch to Level-2 Proxy (Chained mode)
       toggle            Toggle between modes
       status            Show current proxy mode
     (no command)        Enter interactive menu
@@ -2205,12 +2205,12 @@ def show_help():
 4. {Colors.BOLD}System Configuration{Colors.END}
    - Configure system proxy
    - Platform-specific optimizations
-   - Static IP proxy configuration (二级代理)
-   - Proxy mode switching (一级/二级代理切换)
+   - Static IP proxy configuration (Level-2 Proxy)
+   - Proxy mode switching (Level-1/Level-2 toggle)
 
 5. {Colors.BOLD}Proxy Modes{Colors.END}
-   - Direct Mode (一级代理): 本机 → V2Ray节点 → 互联网
-   - Chained Mode (二级代理): 本机 → V2Ray节点 → 静态IP → 互联网
+   - Direct Mode (Level-1): Local → V2Ray Node → Internet
+   - Chained Mode (Level-2): Local → V2Ray Node → Static IP → Internet
    - Quick toggle between modes without changing nodes
 
 [Configuration Locations]
@@ -2248,7 +2248,7 @@ def show_status():
 
     # Proxy mode
     proxy_mode = get_proxy_mode()
-    mode_name = "一级代理 (Direct)" if proxy_mode == "direct" else "二级代理 (Chained)"
+    mode_name = "Level-1 Proxy (Direct)" if proxy_mode == "direct" else "Level-2 Proxy (Chained)"
     mode_color = Colors.GREEN if proxy_mode == "direct" else Colors.CYAN
     print(f"Proxy Mode: {mode_color}{mode_name}{Colors.END}")
 
@@ -2310,7 +2310,7 @@ def show_proxy_status():
 
         # Show proxy mode
         proxy_mode = get_proxy_mode()
-        mode_name = "一级代理 (Direct)" if proxy_mode == "direct" else "二级代理 (Chained)"
+        mode_name = "Level-1 Proxy (Direct)" if proxy_mode == "direct" else "Level-2 Proxy (Chained)"
         mode_color = Colors.GREEN if proxy_mode == "direct" else Colors.CYAN
         print(f"Proxy Mode: {mode_color}{mode_name}{Colors.END}")
 
@@ -2342,7 +2342,7 @@ def show_main_menu():
     """Display main menu"""
     # Get proxy mode for display
     proxy_mode = get_proxy_mode()
-    mode_display = f"{Colors.GREEN}一级代理{Colors.END}" if proxy_mode == "direct" else f"{Colors.CYAN}二级代理{Colors.END}"
+    mode_display = f"{Colors.GREEN}Level-1 Proxy{Colors.END}" if proxy_mode == "direct" else f"{Colors.CYAN}Level-2 Proxy{Colors.END}"
 
     print(f"\n{Colors.BOLD}V2Ray Cross-Platform Management Tool v3.0{Colors.END}")
     print(f"Platform: {Colors.CYAN}{platform.system()}{Colors.END}")
@@ -2362,8 +2362,8 @@ def show_main_menu():
     print("   41. Configure System Proxy")
     print("   42. Sync ProxyChains")
     print("   43. Reset System Proxy to Default")
-    print("   44. Configure Static IP Proxy (二级代理配置)")
-    print("   45. Toggle Proxy Mode (切换一级/二级代理)")
+    print("   44. Configure Static IP Proxy (Level-2 Proxy Config)")
+    print("   45. Toggle Proxy Mode (Switch Level-1/Level-2)")
     print("5. Advanced Features")
     print("   51. View Service Status")
     print("   52. Test Proxy Connection")
@@ -2429,7 +2429,7 @@ def main():
                 toggle_proxy_mode()
             elif mode_action == "status":
                 proxy_mode = get_proxy_mode()
-                mode_name = "一级代理 (Direct)" if proxy_mode == "direct" else "二级代理 (Chained)"
+                mode_name = "Level-1 Proxy (Direct)" if proxy_mode == "direct" else "Level-2 Proxy (Chained)"
                 print(f"Current proxy mode: {mode_name}")
                 if proxy_mode == "chained":
                     subscription = load_subscription()
