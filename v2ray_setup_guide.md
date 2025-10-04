@@ -5,6 +5,32 @@
 ### 🎯 Cross-Platform Support (v3.0+)
 This tool now supports both **macOS** and **Linux** with full feature parity!
 
+### Command Line Interface (CLI) Usage
+The tool supports both interactive menu and direct command-line operations:
+
+```bash
+# Command line usage
+python3 v2ray_command.py [command]
+
+# Available commands:
+help, --help, -h    Show help message
+status, proxy_status Display proxy and service status
+start               Start V2Ray service
+stop                Stop V2Ray service
+restart             Restart V2Ray service
+test                Test proxy connection
+mode <action>       Proxy mode management
+  direct            Switch to 一级代理 (Direct mode)
+  chained           Switch to 二级代理 (Chained mode)
+  toggle            Toggle between modes
+  status            Show current proxy mode
+
+# Examples:
+python3 v2ray_command.py status         # Check proxy status
+python3 v2ray_command.py mode toggle    # Toggle proxy mode
+python3 v2ray_command.py restart        # Restart service
+```
+
 ### For New Users
 
 #### macOS Installation
@@ -92,6 +118,47 @@ export https_proxy="http://127.0.0.1:10809"
 export socks_proxy="socks5://127.0.0.1:10808"
 export all_proxy="socks5://127.0.0.1:10808"
 export no_proxy="localhost,127.0.0.1,localaddress,.localdomain.com"
+```
+
+### 1.4 Proxy Mode System (一级/二级代理)
+The tool supports two proxy modes for different security and anonymity needs:
+
+#### Direct Mode (一级代理)
+- **Traffic Path**: 本机 → V2Ray节点 → 互联网
+- **Use Case**: Standard proxy usage, suitable for most scenarios
+- **Configuration**: Default mode after installation
+
+#### Chained Mode (二级代理)
+- **Traffic Path**: 本机 → V2Ray节点 → 静态IP代理 → 互联网
+- **Use Case**: Enhanced anonymity, static IP requirements
+- **Configuration**: Requires static proxy server configuration
+- **Benefit**: Traffic appears to originate from the static IP, providing additional layer of security
+
+#### Mode Management
+```bash
+# Switch modes via command line
+python3 v2ray_command.py mode direct    # Switch to 一级代理
+python3 v2ray_command.py mode chained   # Switch to 二级代理
+python3 v2ray_command.py mode toggle    # Toggle between modes
+python3 v2ray_command.py mode status    # Check current mode
+
+# Or use interactive menu option 45
+```
+
+### 1.5 Configuration Files
+
+#### subscription_url.ini
+Optional configuration file for storing default subscription URL and static proxy settings:
+```ini
+[gsou_cloud]
+v2ray = https://your.subscription.url/path
+
+[static_proxy]
+server = your.static.proxy.ip
+port = 443
+username = your_username
+password = your_password
+protocol = http  # or socks5
 ```
 
 ## 2. V2Ray Service Management
@@ -226,8 +293,9 @@ Subscription Priority:
 
 ### 3.3 Management Tool Feature Details
 ```bash
-# Run comprehensive management tool
-sudo python3 v2ray_command.py
+# Run comprehensive management tool (interactive menu)
+python3 v2ray_command.py  # macOS (some operations require sudo)
+sudo python3 v2ray_command.py  # Linux (requires root privileges)
 ```
 
 Main Function Modules:
@@ -259,35 +327,74 @@ Main Function Modules:
      - Automatically parse subscription content
      - Count nodes by region
      - Save subscription info for future use
+     - Reads default URL from subscription_url.ini if available
+   - **Apply Node As System Proxy (32)**: Apply single VMess link directly
+     - Parse and apply individual VMess links
+     - Useful for testing specific nodes
+     - Direct configuration without updating subscription
 
 #### 4. **System Configuration**
    - **Configure System Proxy (41)**: Set environment variables and shell functions
      - Automatically configure proxy environment variables
      - Provide proxy_on/proxy_off/proxy_status commands
-   - **Sync ProxyChains4 (42)**: Ensure port configuration is correct
+   - **Sync ProxyChains (42)**: Ensure port configuration is correct
+     - Syncs ProxyChains4 (Linux) or proxychains-ng (macOS)
+   - **Reset System Proxy to Default (43)**: Remove all proxy configurations
+     - Stop and disable V2Ray service
+     - Remove proxy settings from shell configuration
+     - Restore system to pre-installation state
+   - **Configure Static IP Proxy (44)**: Setup 二级代理 (Chained mode)
+     - Configure static proxy server details
+     - Support HTTP/SOCKS5 protocols
+     - Authentication support
+   - **Toggle Proxy Mode (45)**: Switch between 一级/二级代理
+     - Quick switch without changing nodes
+     - Direct mode: 本机 → V2Ray节点 → 互联网
+     - Chained mode: 本机 → V2Ray节点 → 静态IP → 互联网
 
 #### 5. **Advanced Features**
    - **View Service Status (51)**: Display V2Ray running status and node info
+     - Shows current proxy mode (一级/二级)
+     - Displays static proxy info if in chained mode
    - **Test Proxy Connection (52)**: Verify SOCKS5 and HTTP proxy
    - **Restore Configuration Backup (53)**: Quickly restore previous configuration
    - **View Logs (54)**: View recent operation logs
-   - **Display Proxy Status (55)**: Beautified status display
+   - **Help (6)**: Display detailed help information
 
 ### 3.4 Command Line Parameters
 ```bash
-# Directly display proxy status (beautified version)
-python3 v2ray_command.py proxy_status
+# Service control
+python3 v2ray_command.py start         # Start V2Ray service
+python3 v2ray_command.py stop          # Stop V2Ray service
+python3 v2ray_command.py restart       # Restart V2Ray service
 
-# Display help information
-python3 v2ray_command.py --help
+# Status and testing
+python3 v2ray_command.py status        # Display proxy status
+python3 v2ray_command.py proxy_status  # Same as status
+python3 v2ray_command.py test          # Test proxy connection
+
+# Proxy mode management
+python3 v2ray_command.py mode direct   # Switch to 一级代理 (Direct mode)
+python3 v2ray_command.py mode chained  # Switch to 二级代理 (Chained mode)
+python3 v2ray_command.py mode toggle   # Toggle between modes
+python3 v2ray_command.py mode status   # Show current proxy mode
+
+# Help
+python3 v2ray_command.py --help        # Display help information
+python3 v2ray_command.py help          # Same as --help
+python3 v2ray_command.py -h            # Short form
+
+# Interactive menu (no parameters)
+python3 v2ray_command.py               # Enter interactive menu
 ```
 
-The `proxy_status` command will display:
+The `status` command displays:
 - V2Ray service status
+- Current proxy mode (一级/二级代理)
+- Static proxy info (if in chained mode)
 - Current node information
 - Proxy IP address and location
 - Terminal proxy configuration status
-- Local IP comparison
 
 ### 3.5 Built-in Node Distribution
 | Region | Node Count | Port Range | Recommended Use |
@@ -415,9 +522,70 @@ curl -x socks5h://127.0.0.1:10808 -o /dev/null -w "%{time_total}\n" \
 curl -x socks5h://127.0.0.1:10808 https://dnsleaktest.com/api/v1/servers | jq
 ```
 
-## 6. Application Configuration Examples
+## 6. Proxy Mode Usage Examples
 
-### 6.1 Git Configuration
+### 6.1 Direct Mode (一级代理)
+This is the default mode after installation. Traffic flows directly through the V2Ray node:
+
+```bash
+# Check current mode
+python3 v2ray_command.py mode status
+
+# If not in direct mode, switch to it
+python3 v2ray_command.py mode direct
+
+# Traffic path: Your Computer → V2Ray Node → Internet
+```
+
+**Use Cases:**
+- General browsing and downloads
+- Accessing blocked content
+- Standard proxy requirements
+
+### 6.2 Chained Mode (二级代理)
+For enhanced security and anonymity, route traffic through both V2Ray and a static IP proxy:
+
+```bash
+# First configure static proxy (interactive)
+python3 v2ray_command.py
+# Select option 44 to configure static proxy
+
+# Or configure via subscription_url.ini
+cat > subscription_url.ini << EOF
+[static_proxy]
+server = your.static.proxy.ip
+port = 443
+username = your_username
+password = your_password
+protocol = http  # or socks5
+EOF
+
+# Switch to chained mode
+python3 v2ray_command.py mode chained
+
+# Traffic path: Your Computer → V2Ray Node → Static Proxy → Internet
+```
+
+**Use Cases:**
+- Need for static IP address
+- Enhanced anonymity requirements
+- Bypassing IP-based restrictions
+- Corporate proxy environments
+
+### 6.3 Quick Mode Switching
+Toggle between modes without changing nodes:
+
+```bash
+# Toggle between direct and chained mode
+python3 v2ray_command.py mode toggle
+
+# Check current mode
+python3 v2ray_command.py mode status
+```
+
+## 7. Application Configuration Examples
+
+### 7.1 Git Configuration
 ```bash
 # Set global proxy
 git config --global http.proxy http://127.0.0.1:10809
@@ -431,7 +599,7 @@ git config --global --unset http.proxy
 git config --global --unset https.proxy
 ```
 
-### 6.2 Docker Configuration
+### 7.2 Docker Configuration
 Create or edit `~/.docker/config.json`:
 ```json
 {
@@ -445,7 +613,7 @@ Create or edit `~/.docker/config.json`:
 }
 ```
 
-### 6.3 APT Package Manager
+### 7.3 APT Package Manager
 ```bash
 # Create proxy configuration
 sudo tee /etc/apt/apt.conf.d/proxy.conf <<EOF
@@ -457,7 +625,7 @@ EOF
 sudo rm /etc/apt/apt.conf.d/proxy.conf
 ```
 
-### 6.4 Snap Configuration
+### 7.4 Snap Configuration
 ```bash
 # Set proxy
 sudo snap set system proxy.http="http://127.0.0.1:10809"
@@ -468,115 +636,131 @@ sudo snap unset system proxy.http
 sudo snap unset system proxy.https
 ```
 
-## 7. Configuration Backup and Recovery
+## 8. Configuration Backup and Recovery
 
-### 7.1 Backup Mechanism
+### 8.1 Backup Mechanism
 The management tool automatically backs up configurations:
-- V2Ray config backup: `/etc/v2ray/config.json.backup`
-- Subscription config backup: `/etc/v2ray/subscription.json.backup`
-- ProxyChains4 config backup: `/etc/proxychains4.conf.backup`
+- V2Ray config backup: `/etc/v2ray/config.json.backup` (Linux)
+- V2Ray config backup: `/usr/local/etc/v2ray/config.json.backup` (macOS)
+- Subscription config backup: `subscription.json.backup`
+- ProxyChains config backup: Platform-specific location
 
-### 7.2 Restore Configuration Using Script
+### 8.2 Restore Configuration Using Script
 ```bash
 # Run management tool
-sudo python3 v2ray_command.py
+python3 v2ray_command.py  # macOS
+sudo python3 v2ray_command.py  # Linux
+
 # Select 53 - Restore configuration backup
 ```
 
-### 7.3 Manual Recovery Method
+### 8.3 Manual Recovery Method
 ```bash
-# Restore V2Ray configuration
+# Linux - Restore V2Ray configuration
 sudo cp /etc/v2ray/config.json.backup /etc/v2ray/config.json
 sudo systemctl restart v2ray
 
-# Restore subscription configuration
-cp /etc/v2ray/subscription.json.backup /etc/v2ray/subscription.json
+# macOS - Restore V2Ray configuration
+sudo cp /usr/local/etc/v2ray/config.json.backup /usr/local/etc/v2ray/config.json
+sudo launchctl unload /Library/LaunchDaemons/com.v2ray.core.plist
+sudo launchctl load /Library/LaunchDaemons/com.v2ray.core.plist
+
+# Restore subscription configuration (both platforms)
+cp subscription.json.backup subscription.json
 ```
 
-### 7.4 Manual Backup Creation
+### 8.4 Manual Backup Creation
 ```bash
 # Backup current configuration
 sudo cp /etc/v2ray/config.json /etc/v2ray/config.json.manual_backup
 cp /etc/v2ray/subscription.json /etc/v2ray/subscription.json.manual_backup
 ```
 
-## 8. Common Problem Solutions
+## 9. Common Problem Solutions
 
-### 8.0 Insufficient Permission Error
+### 9.0 Insufficient Permission Error
 ```bash
 # Error message: This script requires root privileges
-# Solution: Run with sudo
+# Solution: Run with sudo (Linux)
 sudo python3 v2ray_command.py
 
-# Or switch to root user
-sudo su
+# macOS: Only some operations need sudo
 python3 v2ray_command.py
 ```
 
-### 8.1 V2Ray Service Cannot Start
+### 9.1 V2Ray Service Cannot Start
 ```bash
 # 1. Check configuration file
-/usr/local/bin/v2ray test -config /etc/v2ray/config.json
+/usr/local/bin/v2ray test -config /etc/v2ray/config.json  # Linux
+/usr/local/bin/v2ray test -config /usr/local/etc/v2ray/config.json  # macOS
 
-# 2. View detailed errors
+# 2. View detailed errors (Linux)
 sudo journalctl -xe -u v2ray
+
+# 2. View detailed errors (macOS)
+tail -f /usr/local/var/log/v2ray_command.log.error
 
 # 3. Check port usage
 sudo lsof -i:10808
 sudo lsof -i:10809
 
 # 4. Check permissions
-ls -la /etc/v2ray/config.json
+ls -la /etc/v2ray/config.json  # Linux
+ls -la /usr/local/etc/v2ray/config.json  # macOS
 ```
 
-### 8.2 Cannot Connect to Proxy
+### 9.2 Cannot Connect to Proxy
 ```bash
 # 1. Confirm V2Ray running status
-sudo systemctl status v2ray
+python3 v2ray_command.py status
 
 # 2. Test local ports
 telnet 127.0.0.1 10808
 telnet 127.0.0.1 10809
 
-# 3. Check firewall
+# 3. Check firewall (Linux)
 sudo ufw status
 
 # 4. Try restarting service
-sudo systemctl restart v2ray
+python3 v2ray_command.py restart
 ```
 
-### 8.3 ProxyChains4 Not Working
+### 9.3 ProxyChains Not Working
 ```bash
 # 1. Check configuration file port
-grep "socks" /etc/proxychains4.conf
+grep "socks" /etc/proxychains4.conf  # Linux
+grep "socks" /usr/local/etc/proxychains-ng.conf  # macOS
 
 # 2. Confirm V2Ray SOCKS5 port
-ss -tlnp | grep 10808
+ss -tlnp | grep 10808  # Linux
+netstat -an | grep 10808  # macOS
 
 # 3. Test basic functionality
 proxychains4 -q curl -I https://www.google.com
 ```
 
-### 8.4 Slow Speed or Unstable
+### 9.4 Slow Speed or Unstable
 1. Use node switching script to try other nodes
-2. Prioritize geographically closer nodes (e.g., Singapore local nodes)
+2. Prioritize geographically closer nodes
 3. Avoid peak hours
 4. Check local network quality
+5. Try toggling between proxy modes
 
-### 8.5 Configuration File Corrupted
+### 9.5 Configuration File Corrupted
 ```bash
 # 1. Use script to restore backup
-sudo python3 v2ray_command.py
+python3 v2ray_command.py
 # Select 53 - Restore configuration backup
 
 # 2. Check configuration file format
-/usr/local/bin/v2ray test -config /etc/v2ray/config.json
+/usr/local/bin/v2ray test -config /etc/v2ray/config.json  # Linux
+/usr/local/bin/v2ray test -config /usr/local/etc/v2ray/config.json  # macOS
 
 # 3. Regenerate configuration
 # Use script to select any node to regenerate configuration
 ```
 
-### 8.6 Node Cannot Connect
+### 9.6 Node Cannot Connect
 ```bash
 # 1. Use script to test all nodes
 sudo python3 v2ray_command.py
@@ -586,65 +770,86 @@ sudo python3 v2ray_command.py
 # 3. Avoid frequent node switching
 ```
 
-## 9. Best Practice Recommendations
+## 10. Best Practice Recommendations
 
-### 9.1 Daily Use
+### 10.1 Daily Use
 1. **Terminal Proxy**: Automatically configured via `.zshrc`, takes effect in new terminals
 2. **Temporary Disable**: Use `unset http_proxy https_proxy all_proxy` to disable temporarily
 3. **Force Proxy**: Use `proxychains4 -q` for programs that don't recognize environment variables
-4. **Quick Status Check**: Use `python3 v2ray_command.py proxy_status` for beautified status view
+4. **Quick Status Check**: Use `python3 v2ray_command.py status` for quick status view
 5. **Proxy Control**: Use `proxy_on`/`proxy_off`/`proxy_status` shortcut commands
+6. **Mode Switching**: Use `python3 v2ray_command.py mode toggle` for quick mode switch
 
-### 9.2 Performance Optimization
+### 10.2 Performance Optimization
 1. **Node Selection**:
-   - Singapore Local: Prioritize Singapore nodes
-   - Access China Services: Use Hong Kong nodes
-   - Access Japan/Korea Services: Use Japan/Korea nodes
-   - Access Europe/US Services: Use US nodes
+   - Prioritize geographically closer nodes for lower latency
+   - Use Hong Kong nodes for accessing China services
+   - Use regional nodes for region-specific services
 
-2. **Regular Maintenance**:
-   - Test different node performance weekly
-   - Clean logs regularly: `sudo journalctl --vacuum-time=7d`
+2. **Proxy Mode Selection**:
+   - Use Direct mode (一级代理) for general usage
+   - Use Chained mode (二级代理) when static IP is required
+   - Toggle modes without changing nodes for flexibility
+
+3. **Regular Maintenance**:
+   - Test node performance weekly
+   - Clean logs regularly: `sudo journalctl --vacuum-time=7d` (Linux)
    - Monitor traffic usage
-   - Avoid peak hours during testing, reduce concurrent test frequency
+   - Update subscription regularly
 
-### 9.3 Security Recommendations
+### 10.3 Security Recommendations
 1. Don't access banking and other sensitive services through proxy
 2. Regularly check configuration file permissions
-3. Avoid sharing subscription links and user IDs in public
+3. Avoid sharing subscription links and credentials in public
 4. Use HTTPS to ensure end-to-end encryption
 5. Regularly backup important configurations
+6. Use Chained mode for enhanced anonymity when needed
 
-### 9.4 Stability Assurance
+### 10.4 Stability Assurance
 1. **Avoid Frequent Switching**: Don't change frequently after selecting a stable node
 2. **Regular Testing**: Run node test once a week to understand node status
 3. **Keep Backups**: Don't delete auto-generated backup files
 4. **Record Stable Nodes**: Remember 2-3 stable available nodes
 
-## 10. Quick Reference Card
+## 11. Quick Reference Card
 
 ### Common Commands Quick Reference
 ```bash
-# V2Ray Management
+# V2Ray Service Control (Linux)
 sudo systemctl start/stop/restart/status v2ray
 
-# Comprehensive Management Tool
-sudo python3 v2ray_command.py
+# V2Ray Service Control (macOS)
+sudo launchctl load/unload /Library/LaunchDaemons/com.v2ray.core.plist
 
-# Quick View Proxy Status
-python3 v2ray_command.py proxy_status
+# Management Tool - Interactive Menu
+python3 v2ray_command.py               # macOS
+sudo python3 v2ray_command.py          # Linux
+
+# Direct Command Line Operations
+python3 v2ray_command.py status        # Check proxy status
+python3 v2ray_command.py start         # Start V2Ray service
+python3 v2ray_command.py stop          # Stop V2Ray service
+python3 v2ray_command.py restart       # Restart V2Ray service
+python3 v2ray_command.py test          # Test proxy connection
+
+# Proxy Mode Switching
+python3 v2ray_command.py mode direct   # Switch to 一级代理
+python3 v2ray_command.py mode chained  # Switch to 二级代理
+python3 v2ray_command.py mode toggle   # Toggle between modes
+python3 v2ray_command.py mode status   # Check current mode
 
 # Proxy Testing
 curl -x socks5h://127.0.0.1:10808 https://ipinfo.io
+curl -x http://127.0.0.1:10809 https://ipinfo.io
 
-# Force Proxy
-proxychains4 -q [command]
+# Force Proxy (ProxyChains)
+proxychains4 -q [command]              # Linux
+proxychains4 -q [command]              # macOS (via proxychains-ng)
 
-# View V2Ray Logs
-sudo journalctl -u v2ray -f
-
-# View Management Tool Logs
-tail -f /var/log/v2ray_command.log
+# View Logs
+sudo journalctl -u v2ray -f            # Linux V2Ray logs
+tail -f /var/log/v2ray_command.log     # Linux tool logs
+tail -f /usr/local/var/log/v2ray_command.log  # macOS tool logs
 ```
 
 ### Port Information
@@ -652,11 +857,28 @@ tail -f /var/log/v2ray_command.log
 - HTTP: `127.0.0.1:10809`
 - V2Ray Remote: See node list
 
+### Proxy Mode Reference
+| Mode | Traffic Path | Use Case |
+|------|-------------|----------|
+| Direct (一级代理) | 本机 → V2Ray节点 → 互联网 | Standard proxy usage |
+| Chained (二级代理) | 本机 → V2Ray节点 → 静态IP → 互联网 | Enhanced anonymity |
+
 ---
-Document Update Time: 2025-08-20
+Document Update Time: 2025-10-04
 Author: Claude Assistant
 
 ### Update Log
+- 2025-10-04: **Documentation Update to Match v3.0.0 Code**
+  - Added comprehensive CLI command documentation
+  - Documented proxy mode system (一级/二级代理)
+  - Added Apply Node As System Proxy feature (option 32)
+  - Added Reset System Proxy to Default feature (option 43)
+  - Documented static IP proxy configuration (option 44)
+  - Added proxy mode toggle feature (option 45)
+  - Documented subscription_url.ini configuration
+  - Updated Quick Reference Card with all new commands
+  - Added proxy mode switching via command line
+  - Enhanced command line usage examples
 - 2025-08-31: **v3.0.0 Major Update - Full Cross-Platform Support**
   - Added complete macOS support (10.12+)
   - Refactored with platform abstraction layer
