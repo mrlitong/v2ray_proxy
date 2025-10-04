@@ -29,13 +29,13 @@ proxy_status() {
         echo "Proxy IP Information:"
         echo "===================="
 
-        # 获取 IP 信息
+        # Fetch IP information
         local ip_info=$(curl -s https://ipinfo.io 2>/dev/null)
 
         if [ -n "$ip_info" ]; then
-            # 使用 Python 或 jq 解析 JSON（如果可用）
+            # Use Python or jq to parse JSON (if available)
             if command -v python3 >/dev/null 2>&1; then
-                # 使用 Python 解析 JSON
+                # Parse JSON using Python
                 echo "$ip_info" | python3 -c "
 import json, sys
 try:
@@ -49,14 +49,14 @@ except:
     print('Error parsing IP information')
 "
             elif command -v jq >/dev/null 2>&1; then
-                # 使用 jq 解析 JSON
+                # Parse JSON using jq
                 echo "IP Address: $(echo "$ip_info" | jq -r .ip)"
                 echo "Location: $(echo "$ip_info" | jq -r '"\(.city), \(.region), \(.country)"')"
                 echo "Coordinates: $(echo "$ip_info" | jq -r .loc)"
                 echo "ISP/Organization: $(echo "$ip_info" | jq -r .org)"
                 echo "Timezone: $(echo "$ip_info" | jq -r .timezone)"
             else
-                # 使用 grep 作为后备方案
+                # Use grep as fallback
                 local ip=$(echo "$ip_info" | grep -oP '"ip":\s*"\K[^"]*' 2>/dev/null || echo "N/A")
                 local city=$(echo "$ip_info" | grep -oP '"city":\s*"\K[^"]*' 2>/dev/null || echo "N/A")
                 local region=$(echo "$ip_info" | grep -oP '"region":\s*"\K[^"]*' 2>/dev/null || echo "N/A")
@@ -77,13 +77,13 @@ except:
     fi
 }
 
-# V2Ray代理模式管理
+# V2Ray Proxy Mode Management
 proxy_mode_direct() {
     local v2ray_script="$HOME/v2ray_proxy/v2ray_command.py"
     if [ -f "$v2ray_script" ]; then
         sudo python3 "$v2ray_script" mode direct
     else
-        echo "错误: 找不到 v2ray_command.py (路径: $v2ray_script)"
+        echo "Error: Cannot find v2ray_command.py (path: $v2ray_script)"
     fi
 }
 
@@ -92,7 +92,7 @@ proxy_mode_chained() {
     if [ -f "$v2ray_script" ]; then
         sudo python3 "$v2ray_script" mode chained
     else
-        echo "错误: 找不到 v2ray_command.py (路径: $v2ray_script)"
+        echo "Error: Cannot find v2ray_command.py (path: $v2ray_script)"
     fi
 }
 
@@ -101,7 +101,7 @@ proxy_mode_toggle() {
     if [ -f "$v2ray_script" ]; then
         sudo python3 "$v2ray_script" mode toggle
     else
-        echo "错误: 找不到 v2ray_command.py (路径: $v2ray_script)"
+        echo "Error: Cannot find v2ray_command.py (path: $v2ray_script)"
     fi
 }
 
@@ -110,60 +110,60 @@ proxy_mode_status() {
     if [ -f "$v2ray_script" ]; then
         python3 "$v2ray_script" mode status
     else
-        echo "错误: 找不到 v2ray_command.py (路径: $v2ray_script)"
+        echo "Error: Cannot find v2ray_command.py (path: $v2ray_script)"
     fi
 }
 
 proxy_help() {
     cat << 'EOF'
 ╔══════════════════════════════════════════════════════════════╗
-║              V2Ray 代理管理快捷命令                          ║
+║           V2Ray Proxy Management Quick Commands              ║
 ╚══════════════════════════════════════════════════════════════╝
 
-【环境变量管理】
-  proxy_on          - 启用系统代理环境变量
-  proxy_off         - 禁用系统代理环境变量
-  proxy_status      - 查看代理状态和出口IP信息
+【Environment Variable Management】
+  proxy_on          - Enable system proxy environment variables
+  proxy_off         - Disable system proxy environment variables
+  proxy_status      - View proxy status and exit IP information
 
-【代理模式切换】
-  proxy_mode_direct   - 切换到一级代理 (本机 → V2Ray → 互联网)
-  proxy_mode_chained  - 切换到二级代理 (本机 → V2Ray → 静态IP → 互联网)
-  proxy_mode_toggle   - 一键切换代理模式
-  proxy_mode_status   - 查看当前代理模式
+【Proxy Mode Switching】
+  proxy_mode_direct   - Switch to Level-1 Proxy (Local → V2Ray → Internet)
+  proxy_mode_chained  - Switch to Level-2 Proxy (Local → V2Ray → Static IP → Internet)
+  proxy_mode_toggle   - Quick toggle between proxy modes
+  proxy_mode_status   - View current proxy mode
 
-【帮助】
-  proxy_help        - 显示此帮助信息
+【Help】
+  proxy_help        - Display this help information
 
 ╔══════════════════════════════════════════════════════════════╗
-║ 使用示例                                                     ║
+║ Usage Examples                                               ║
 ╚══════════════════════════════════════════════════════════════╝
 
-  # 启用代理环境变量
+  # Enable proxy environment variables
   $ proxy_on
 
-  # 查看当前IP和代理状态
+  # View current IP and proxy status
   $ proxy_status
 
-  # 切换到二级代理（使用静态IP）
+  # Switch to Level-2 Proxy (using static IP)
   $ proxy_mode_chained
 
-  # 查看当前代理模式
+  # View current proxy mode
   $ proxy_mode_status
 
-  # 快速切换代理模式
+  # Quick toggle proxy mode
   $ proxy_mode_toggle
 
-  # 禁用代理环境变量
+  # Disable proxy environment variables
   $ proxy_off
 
 ╔══════════════════════════════════════════════════════════════╗
-║ 说明                                                         ║
+║ Notes                                                        ║
 ╚══════════════════════════════════════════════════════════════╝
 
-  • 一级代理: 适合日常使用，速度快
-  • 二级代理: 通过静态IP访问，适合需要固定IP的场景
-  • proxy_on/off 只控制环境变量，不影响V2Ray服务
-  • 代理模式切换需要sudo权限，会自动重启V2Ray服务
+  • Level-1 Proxy: Suitable for daily use, fast speed
+  • Level-2 Proxy: Access through static IP, suitable for scenarios requiring fixed IP
+  • proxy_on/off only controls environment variables, does not affect V2Ray service
+  • Proxy mode switching requires sudo privileges, will automatically restart V2Ray service
 
 EOF
 }
