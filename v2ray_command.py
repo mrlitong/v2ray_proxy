@@ -1263,45 +1263,26 @@ def test_all_nodes(nodes):
 def configure_system_proxy():
     """Configure system proxy"""
     log("Configuring system proxy...", "INFO")
-    
+
     # Configure ProxyChains
     PLATFORM_HANDLER.configure_proxychains()
-    
-    # Configure shell environment variables
-    shell_config = """
-# V2Ray Proxy Configuration
-export http_proxy="http://127.0.0.1:10809"
-export https_proxy="http://127.0.0.1:10809"
-export HTTP_PROXY="http://127.0.0.1:10809"
-export HTTPS_PROXY="http://127.0.0.1:10809"
-export socks_proxy="socks5://127.0.0.1:10808"
-export all_proxy="socks5://127.0.0.1:10808"
-export no_proxy="localhost,127.0.0.1,localaddress,.localdomain.com"
 
-# Proxy control functions
-proxy_on() {
-    export http_proxy="http://127.0.0.1:10809"
-    export https_proxy="http://127.0.0.1:10809"
-    export HTTP_PROXY="http://127.0.0.1:10809"
-    export HTTPS_PROXY="http://127.0.0.1:10809"
-    export all_proxy="socks5://127.0.0.1:10808"
-    echo "Proxy enabled"
-}
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    proxy_shell_config = os.path.join(script_dir, "proxy_shell_config.sh")
 
-proxy_off() {
-    unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy
-    echo "Proxy disabled"
-}
+    # Verify proxy_shell_config.sh exists
+    if not os.path.exists(proxy_shell_config):
+        log(f"Warning: proxy_shell_config.sh not found at {proxy_shell_config}", "WARNING")
+        log("Proxy functions will not be available", "WARNING")
+        return
 
-proxy_status() {
-    if [ -z "$http_proxy" ]; then
-        echo "Proxy is OFF"
-    else
-        echo "Proxy is ON"
-        echo "HTTP Proxy: $http_proxy"
-        echo "SOCKS Proxy: $all_proxy"
-    fi
-}
+    # Shell config to source the proxy_shell_config.sh
+    shell_config = f"""
+# V2Ray Proxy Configuration - Source from proxy_shell_config.sh
+if [ -f "{proxy_shell_config}" ]; then
+    source "{proxy_shell_config}"
+fi
 """
     
     # Get the actual user's home directory
@@ -1344,16 +1325,17 @@ proxy_status() {
             shell_rc = '.profile'
     
     rc_path = os.path.join(actual_home, shell_rc)
-    
+
     # Check if proxy config already exists
-    proxy_marker = '# V2Ray Proxy Configuration'
-    
+    proxy_marker = '# V2Ray Proxy Configuration - Source from proxy_shell_config.sh'
+
     try:
         if os.path.exists(rc_path):
             with open(rc_path, 'r') as f:
                 content = f.read()
-            
-            if proxy_marker not in content:
+
+            # Check if already sourcing proxy_shell_config.sh
+            if proxy_marker not in content and 'proxy_shell_config.sh' not in content:
                 # Add proxy configuration
                 with open(rc_path, 'a') as f:
                     f.write(f'\n{shell_config}\n')
@@ -1373,9 +1355,9 @@ proxy_status() {
     except Exception as e:
         log(f"Failed to configure shell proxy: {str(e)}", "WARNING")
     
-    log("System proxy environment variables configured", "SUCCESS")
+    log("System proxy configuration completed", "SUCCESS")
     log("New terminals will automatically load proxy settings", "INFO")
-    log("Use proxy_on/proxy_off/proxy_status to control proxy", "INFO")
+    log("Available commands: proxy_on, proxy_off, proxy_status, proxy_mode_*, proxy_help", "INFO")
     log(f"For current session, run: source ~/{shell_rc}", "INFO")
 
 def save_subscription(url, nodes):
