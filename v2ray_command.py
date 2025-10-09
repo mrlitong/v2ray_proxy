@@ -484,7 +484,7 @@ tcp_read_time_out 15000
 tcp_connect_time_out 8000
 
 [ProxyList]
-socks5 127.0.0.1 10808
+socks5 127.0.0.1 20808
 """
             try:
                 os.makedirs(os.path.dirname(proxychains_config), exist_ok=True)
@@ -500,9 +500,9 @@ socks5 127.0.0.1 10808
                     content = f.read()
                 
                 # Update proxy settings
-                if 'socks5  127.0.0.1 10808' not in content:
-                    content = content.replace('socks5  127.0.0.1 1080', 'socks5  127.0.0.1 10808')
-                    content = content.replace('socks4 	127.0.0.1 9050', 'socks5  127.0.0.1 10808')
+                if 'socks5  127.0.0.1 20808' not in content:
+                    content = content.replace('socks5  127.0.0.1 1080', 'socks5  127.0.0.1 20808')
+                    content = content.replace('socks4 	127.0.0.1 9050', 'socks5  127.0.0.1 20808')
                     
                     with open(proxychains_config, 'w') as f:
                         f.write(content)
@@ -737,10 +737,10 @@ WantedBy=multi-user.target
             content = content.replace('#dynamic_chain', 'dynamic_chain')
             
             # Set proxy
-            if 'socks5  127.0.0.1 10808' not in content:
+            if 'socks5  127.0.0.1 20808' not in content:
                 # Replace old port
-                content = content.replace('socks4 	127.0.0.1 9050', 'socks5  127.0.0.1 10808')
-                content = content.replace('socks5  127.0.0.1 1080', 'socks5  127.0.0.1 10808')
+                content = content.replace('socks4 	127.0.0.1 9050', 'socks5  127.0.0.1 20808')
+                content = content.replace('socks5  127.0.0.1 1080', 'socks5  127.0.0.1 20808')
             
             with open(proxychains_config, 'w') as f:
                 f.write(content)
@@ -924,7 +924,7 @@ def generate_v2ray_config(node, proxy_mode="direct", static_proxy_config=None):
         },
         "inbounds": [
             {
-                "port": 10808,
+                "port": 20808,
                 "protocol": "socks",
                 "settings": {
                     "auth": "noauth",
@@ -932,7 +932,7 @@ def generate_v2ray_config(node, proxy_mode="direct", static_proxy_config=None):
                 }
             },
             {
-                "port": 10809,
+                "port": 20809,
                 "protocol": "http",
                 "settings": {}
             }
@@ -1639,8 +1639,8 @@ def test_proxy():
     log("Testing proxy connection...", "INFO")
 
     test_urls = [
-        ("SOCKS5", "curl -s -x socks5h://127.0.0.1:10808 https://ipinfo.io/ip -m 10"),
-        ("HTTP", "curl -s -x http://127.0.0.1:10809 https://ipinfo.io/ip -m 10")
+        ("SOCKS5", "curl -s -x socks5h://127.0.0.1:20808 https://ipinfo.io/ip -m 10"),
+        ("HTTP", "curl -s -x http://127.0.0.1:20809 https://ipinfo.io/ip -m 10")
     ]
 
     for name, cmd in test_urls:
@@ -1654,7 +1654,7 @@ def get_current_ip():
     """Get current IP information"""
     try:
         result = subprocess.run(
-            ["curl", "-s", "-x", "socks5h://127.0.0.1:10808", "https://ipinfo.io", "--connect-timeout", "5"],
+            ["curl", "-s", "-x", "socks5h://127.0.0.1:20808", "https://ipinfo.io", "--connect-timeout", "5"],
             capture_output=True,
             text=True
         )
@@ -1805,8 +1805,8 @@ def quick_start():
             test_proxy()
             log("\n✨ V2Ray configuration completed!", "SUCCESS")
             print(f"\nCurrent node: {best_node['name']}")
-            print(f"Local SOCKS5 proxy: 127.0.0.1:10808")
-            print(f"Local HTTP proxy: 127.0.0.1:10809")
+            print(f"Local SOCKS5 proxy: 127.0.0.1:20808")
+            print(f"Local HTTP proxy: 127.0.0.1:20809")
             
             # Platform-specific tips
             if IS_MACOS:
@@ -1967,8 +1967,8 @@ def apply_vmess_link():
 
         print(f"\n{Colors.GREEN}✓ Configuration applied successfully!{Colors.END}")
         print(f"Local proxy ports:")
-        print(f"  SOCKS5: 127.0.0.1:10808")
-        print(f"  HTTP: 127.0.0.1:10809")
+        print(f"  SOCKS5: 127.0.0.1:20808")
+        print(f"  HTTP: 127.0.0.1:20809")
     else:
         log("Failed to apply VMess configuration", "ERROR")
 
@@ -2207,8 +2207,8 @@ def show_help():
     - Service: /etc/systemd/system/v2ray.service
 
 [Proxy Ports]
-  - SOCKS5: 127.0.0.1:10808
-  - HTTP: 127.0.0.1:10809
+  - SOCKS5: 127.0.0.1:20808
+  - HTTP: 127.0.0.1:20809
 
 ================================================================================
 """
@@ -2307,8 +2307,8 @@ def show_proxy_status():
 
         # Show proxy ports
         print(f"\nProxy Ports:")
-        print(f"  SOCKS5: {Colors.CYAN}127.0.0.1:10808{Colors.END}")
-        print(f"  HTTP: {Colors.CYAN}127.0.0.1:10809{Colors.END}")
+        print(f"  SOCKS5: {Colors.CYAN}127.0.0.1:20808{Colors.END}")
+        print(f"  HTTP: {Colors.CYAN}127.0.0.1:20809{Colors.END}")
 
         # Get current IP if service is running
         print("\nChecking connection...")
